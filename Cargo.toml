@@ -2,11 +2,30 @@
 name = "hooke"
 version = "0.0.0"
 edition = "2024"
-description = "A FlexBox layout library focused on concurrent rendering."
+description = "A flexbox-only layout engine for persistent, copy-on-write UI trees, focused on concurrent rendering."
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/shergin/hooke"
 readme = "README.md"
-keywords = ["flexbox", "layout", "concurrent", "rendering"]
-categories = ["gui", "rendering"]
+keywords = ["flexbox", "layout", "concurrent", "rendering", "ui"]
+categories = ["gui", "rendering", "no-std"]
+
+[features]
+default = ["std", "sync"]
+# Enables `std::error::Error` impls and `SharedMeasureCache`.
+std = []
+# Handles are `Arc` and nodes are `Send + Sync`. Without it handles are `Rc`,
+# for single-core targets without atomic compare-and-swap.
+sync = []
+# Two persistent measurement slots per node instead of four (128 bytes instead of 192).
+slots-2 = []
+# Implements `Scalar` for `f64`. Compiled and tested, not optimised.
+f64 = []
 
 [dependencies]
+
+[dev-dependencies]
+taffy = { version = "0.15.1", default-features = false, features = ["std", "taffy_tree", "flexbox"] }
+
+[[example]]
+name = "shadow_tree"
+required-features = ["std", "sync"]

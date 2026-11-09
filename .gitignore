@@ -1,2 +1,5 @@
 /target
 Cargo.lock
+
+# Local notes, not part of the project
+/notes/
