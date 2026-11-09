@@ -1,0 +1,194 @@
+# Chrome fixtures
+
+Flexbox layouts recorded in Chrome, used by `tests/chrome_fixtures.rs` as the correctness arbiter
+for hooke's flex algorithm.
+
+## Contents
+
+| Path | What |
+|---|---|
+| `flex/<name>.txt` | One file per in-scope variant of Taffy's Chrome-generated flexbox fixtures |
+| `chrome_truth/<name>.txt` | Variants of the cephal fixtures named in cephal's `TAFFY_DIVERGENCES.md` (cases where Taffy disagrees with Chrome) |
+| `skipped.txt` | `dir/name<TAB>reason` for every variant the generator could not express in hooke |
+| `expected_failures.txt` | `dir/name<TAB>reason` for every fixture hooke currently fails |
+
+A fixture is named by its directory and file stem, e.g. `flex/align_items_center__border_box_ltr`.
+
+## Sources and licences
+
+- **Taffy v0.15.1** (<https://github.com/DioxusLabs/taffy>, tag `v0.15.1`, MIT licence).
+  Taffy's `scripts/gentest` loads each `test_fixtures/flex/*.html` in Chrome, reads every node's
+  layout through `getBoundingClientRect`, and writes `tests/xml/flex/<name>.xml` (Taffy no longer
+  generates Rust test bodies; `tests/xml.rs` interprets the XML). The generator here reads those
+  XML files: 685 fixtures, 2740 variants.
+- **cephal** (<https://github.com/zortax/cephal>, MIT OR Apache-2.0):
+  `tests/fixtures/cephal.xml`, the same XML schema, rendered by Chrome for Testing 156. Only the
+  fixtures named in `tests/fixtures/TAFFY_DIVERGENCES.md` are taken. Most of them use
+  `display: block` containers or grid and are skipped; the twelve converted variants are
+  `flex_column_wrap_item_breaks_at_its_size`, `flex_item_unstretched_cross_size_indefinite` and
+  `root_flex_width_max_content`. That document gives no layout numbers of its own; it argues, case
+  by case, where Taffy 0.15 departs from Chrome. The flexbox-relevant cases are: percentage
+  heights inside an unstretched row item are indefinite; a percentage row gap against an
+  indefinite height is zero; a multi-line container breaks lines at its used inner main size even
+  when that size is not definite; a column container's content height sums its items' clamped
+  flex base sizes; percentage padding counts in a content-based flex base size; `space-between`
+  with negative free space falls back to `flex-start`, which in a reversed container is the end
+  edge; an overflowing `wrap-reverse` line overflows past the top; a column container of
+  content-based width resolves its items' percentages against that width; an absolutely
+  positioned box finds its width before its content height; a flex item with an aspect ratio
+  takes its cross size from its used main size; shrink-to-fit and intrinsic widths of row
+  containers follow css-flexbox-1 §9.9.1 and CSS 2.2 §10.3.5; and a leaf of known width is measured
+  at its content-box width (Taffy hands its measure function the border-box size).
+
+## Regenerating
+
+```sh
+S=$(mktemp -d)
+git clone --depth 1 --branch v0.15.1 https://github.com/DioxusLabs/taffy "$S/taffy"
+mkdir "$S/cephal"
+curl -sfL https://raw.githubusercontent.com/zortax/cephal/main/tests/fixtures/cephal.xml -o "$S/cephal/cephal.xml"
+curl -sfL https://raw.githubusercontent.com/zortax/cephal/main/tests/fixtures/TAFFY_DIVERGENCES.md -o "$S/cephal/TAFFY_DIVERGENCES.md"
+python3 -I tools/chrome_fixtures/gen.py "$S/taffy" "$S/cephal/cephal.xml" "$S/cephal/TAFFY_DIVERGENCES.md"
+```
+
+The checkout is read as data only; nothing in it is built or run. The generator rewrites
+`flex/`, `chrome_truth/` and `skipped.txt`, never `expected_failures.txt`. After regenerating, run
+the harness with `HOOKE_FIXTURES_UPDATE=1` if the set of fixtures changed.
+
+## Variants
+
+Taffy's generator lays every fixture out four times, by setting a class on `<body>` that the
+base stylesheet (`scripts/gentest/test_base_style.css`) turns into
+`box-sizing` and `direction` on every element:
+
+| Suffix | Every element gets |
+|---|---|
+| `__border_box_ltr` | `box-sizing: border-box; direction: ltr` |
+| `__content_box_ltr` | `box-sizing: content-box; direction: ltr` |
+| `__border_box_rtl` | `box-sizing: border-box; direction: rtl` |
+| `__content_box_rtl` | `box-sizing: content-box; direction: rtl` |
+
+In the XML, `box-sizing` is written only when it is not `border-box` (Taffy's default),
+`direction` is always written (it is the computed value), and `position` is the computed value
+(the base stylesheet makes every `div` `position: relative`, the test root `absolute`), written
+only when it is not `static`. The generator writes `display`, `position`, `box-sizing` and
+`direction` explicitly on every node, because hooke's defaults (content-box, static) differ from
+Taffy's.
+
+## Format
+
+UTF-8, one item per line, `#` starts a comment line.
+
+```
+source taffy-v0.15.1 tests/xml/flex/<file>.xml
+viewport <width> <height>          # max-content | min-content | <n>px
+rounding true|false
+node <x> <y> <width> <height> key=value key=value ...
+  node <x> <y> <width> <height> key=value ...     # two spaces of indentation per level
+```
+
+`node` lines are the tree in pre-order, children indented two spaces under their parent.
+
+- `x y width height` are Chrome's numbers exactly as Taffy recorded them (see the rounding model
+  below). `x y` are relative to the node's containing block's border box: the parent, or for
+  `position: absolute` the nearest ancestor whose `position` is not `static`, or the root if there
+  is none. The root's `x y` are relative to the viewport.
+- Properties use CSS names and CSS values: lengths are `<n>px`, `<n>%` (a CSS percentage; the
+  reader divides by 100 because hooke percentages are fractions), `auto`, `none`, `min-content`,
+  `max-content`, `fit-content`, `stretch`, `content`. Keywords are the CSS keywords. The keys are
+  `display position box-sizing direction flex-direction flex-wrap overflow-x overflow-y
+  scrollbar-width align-items align-self align-content justify-content flex-grow flex-shrink
+  flex-basis order width height min-width min-height max-width max-height aspect-ratio row-gap
+  column-gap margin-* padding-* border-* top right bottom left text`. An absent key is the CSS
+  initial value (`Style::web()`), which equals Taffy's default for every key that may be absent.
+- `text=` marks a text leaf measured by the Ahem model. The value has no whitespace, `=` or `\`;
+  any other character is written `\u{hex}` (the zero-width space is `\u{200b}`).
+
+Mapping notes:
+
+- `scrollbar-width` (Taffy's `scrollbar_width`, 15 in every fixture that sets overflow) maps to
+  `Style::with_scrollbar_gutter`.
+- Taffy's `align_self: None` (`auto`) is an absent `align-self`; `align-items`, `align-content`
+  and `justify-content` default to `normal`. `max-width: auto` in Taffy means no maximum and is an
+  absent key (`Length::None`). `column-gap` is Taffy's `gap.width`, `row-gap` its `gap.height`.
+- A leaf with no element children and no text is an empty view; a leaf with text is an Ahem leaf
+  (as `tests/xml.rs` does: the text is trimmed, and its presence, not the `<text>` tag, decides).
+- `display: block` on a leaf (no child elements) is converted to `flex`: a box with no child boxes
+  lays out the same whatever its inner display type. Any other `display: block` is skipped.
+
+Skipped (one line each in `skipped.txt`, the reason naming the first property found):
+`display: block` containers, `display: grid`, `flex-wrap: balance` and `flex-line-count` (a Taffy
+extension), `writing-mode: vertical-*`, `safe`/`unsafe` overflow-alignment keywords, and any
+property or value with no hooke equivalent (`float`, `clear`, `text-align`, `contain`,
+`justify-items`, `justify-self`, `grid-*`, `calc()`, percentage borders). Counts for this
+corpus: 2740 Taffy variants, 2488 converted, 252 skipped (80 `flex-wrap: balance`, 56
+`flex-line-count`, 44 `display: block`, 40 `safe`/`unsafe` alignment, 20 `display: grid`, 12
+vertical writing modes); 120 cephal variants, 12 converted, 108 skipped (96 `display: block`, 12
+`display: grid`).
+
+## The text model
+
+Text leaves are measured by `measure_ahem` in `tests/support/mod.rs`, a line-for-line port of
+Taffy's `test_measure_function` with `TestMeasureData::AhemText`
+(`tests/common/src/lib.rs` in Taffy v0.15.1). Every glyph is a 10px square (the Ahem font at
+`font-size: 10px; line-height: 1`), and `U+200B` is the only break opportunity:
+
+- If both dimensions are known, they are returned.
+- min-content inline size = longest segment x 10; max-content = all segments x 10 (segment lengths
+  are UTF-8 byte counts, as in Taffy). The inline size is the known size, else the min- or
+  max-content size, or `min(definite available, max-content)`; then at least the min-content size.
+- The block size is the known size, else 10 x the number of lines from greedily packing segments
+  into `floor(inline / 10)` characters.
+- Known dimensions replace the computed ones. No baselines are reported (Taffy's leaf has none).
+
+hooke passes its measure function content-box constraints; Taffy's passes the border-box known
+size (one of the cephal divergences). The port is of the text model, so hooke's leaves see their
+content box, which is what Chrome does.
+
+## Root constraints
+
+As in Taffy's `tests/xml.rs`: available space is the `viewport` (`max-content` on both axes in
+all but eight Taffy variants, which have a definite width), no imposed size, and the root's own
+`direction`.
+hooke gives the root no offset, so the harness places the root at Chrome's root origin and
+compares the root's size (its `x y` are where the test page put it, a host concern).
+
+## Rounding model
+
+With `rounding true`, Taffy's generator records Chrome's "smart rounded" layout:
+
+```
+width = round(rect.right)  - round(rect.left)
+x     = round(rect.left)   - round(containingBlockRect.left)
+```
+
+(and the same vertically), where `rect` is `getBoundingClientRect()`, so absolute edges are
+rounded and sizes are differences of rounded edges. This is Taffy's `round_layout` and
+`hooke::snap`. The harness computes each node's unrounded absolute origin by summing hooke's
+parent-relative offsets from the root, snaps each frame with
+`hooke::snap(unrounded_parent_origin, offset, size, 1.0)`, and compares it with Chrome's absolute
+rounded frame, rebuilt by summing the recorded `x y` along the containing-block chain. Frames are
+reported relative to the parent's rounded origin. Tolerance: 0.01.
+
+The eight fixtures with `rounding false` record `getBoundingClientRect()` values directly; those
+are Chrome LayoutUnits (multiples of 1/64 px), so they are compared unrounded with Taffy's own
+tolerance of 0.1.
+
+A `display: none` node is compared by size only (0 x 0); nothing inside it is compared.
+
+The corpus was checked by laying every converted fixture out with Taffy 0.15.1 through the same
+reader and text model: all 2488 Taffy variants agree with Chrome; the cephal variants that fail in
+Taffy are exactly the documented divergences.
+
+## Running
+
+```sh
+cargo +stable test --test chrome_fixtures -- --nocapture                    # summary line
+HOOKE_FIXTURE=align_items_center cargo +stable test --test chrome_fixtures -- --nocapture  # details
+HOOKE_FIXTURES_UPDATE=1 cargo +stable test --test chrome_fixtures            # accept current results
+```
+
+The test fails if a fixture not in `expected_failures.txt` fails, if a listed fixture passes, or
+if a listed fixture no longer exists. The update mode keeps the reasons of entries that still
+fail and writes `unexplained` for new ones; with `HOOKE_FIXTURE` set it only touches matching
+entries.

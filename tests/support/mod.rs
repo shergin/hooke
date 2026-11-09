@@ -7,6 +7,8 @@ use hooke::{
 };
 use std::sync::atomic::{AtomicU64, Ordering};
 
+pub mod fixtures;
+
 static NEXT_ID: AtomicU64 = AtomicU64::new(1);
 pub fn fresh_id() -> u64 {
     NEXT_ID.fetch_add(1, Ordering::Relaxed)
@@ -29,6 +31,10 @@ pub enum Kind {
     Text { intrinsic: Size<f32> },
     /// A measured leaf whose attachment children are laid out re-entrantly.
     Paragraph,
+    /// A text leaf measured by Taffy's Ahem text model ([`measure_ahem`]), as in the Chrome
+    /// fixtures: `text` with zero-width-space break opportunities, `vertical` for a vertical
+    /// writing mode (Taffy's `TestNodeContext::ahem_text`).
+    AhemText { text: String, vertical: bool },
 }
 
 /// The host node. `Clone` is shallow.
@@ -140,9 +146,79 @@ impl Measure<Node> for Shaper {
                 }
                 Measured { size: Size::new(x, 12.0), first_baseline: Opt::some(10.0), last_baseline: Opt::some(10.0) }
             }
+            Kind::AhemText { text, vertical } => measure_ahem(&text, vertical, input),
             Kind::View => Measured::default(),
         }
     }
+}
+
+/// A text leaf measured by [`measure_ahem`].
+pub fn ahem_text(tag: u32, style: Style, text: &str, vertical: bool) -> Handle<Node> {
+    Handle::new(Node {
+        tag,
+        props: Props::new(style),
+        kind: Kind::AhemText { text: text.to_string(), vertical },
+        children: Children::empty(),
+        layout: LayoutState::measured(fresh_id()),
+    })
+}
+
+/// Taffy v0.15.1's test text model (`tests/common/src/lib.rs`: `test_measure_function` with
+/// `TestMeasureData::AhemText`), ported line for line.
+///
+/// Every glyph of the Ahem font is a 10px square at the fixtures' 10px font size and line height
+/// 1; `U+200B` (zero-width space) is the only break opportunity. Line lengths are counted in
+/// UTF-8 bytes, as Taffy counts them. A dimension the engine already knows is echoed back. The
+/// model has no baselines (Taffy's leaf reports none), so none are returned.
+pub fn measure_ahem(text: &str, vertical: bool, input: MeasureInput<f32>) -> Measured<f32> {
+    const ZWS: char = '\u{200B}';
+    const H_WIDTH: f32 = 10.0;
+    const H_HEIGHT: f32 = 10.0;
+
+    let known = input.known;
+    if let (Some(width), Some(height)) = (known.width.get(), known.height.get()) {
+        return Measured::size(width, height);
+    }
+
+    let (inline_known, block_known, inline_available) = if vertical {
+        (known.height, known.width, input.available.height)
+    } else {
+        (known.width, known.height, input.available.width)
+    };
+    let lines: Vec<&str> = text.split(ZWS).collect();
+    let computed = if lines.is_empty() {
+        Size::new(0.0, 0.0)
+    } else {
+        let min_line_length: usize = lines.iter().map(|line| line.len()).max().unwrap_or(0);
+        let max_line_length: usize = lines.iter().map(|line| line.len()).sum();
+        let inline_size = inline_known
+            .get()
+            .unwrap_or_else(|| match inline_available {
+                Available::MinContent => min_line_length as f32 * H_WIDTH,
+                Available::MaxContent => max_line_length as f32 * H_WIDTH,
+                Available::Definite(inline_size) => inline_size.min(max_line_length as f32 * H_WIDTH),
+            })
+            .max(min_line_length as f32 * H_WIDTH);
+        let block_size = block_known.get().unwrap_or_else(|| {
+            let inline_line_length = (inline_size / H_WIDTH).floor() as usize;
+            let mut line_count = 1;
+            let mut current_line_length = 0;
+            for line in &lines {
+                if current_line_length + line.len() > inline_line_length {
+                    if current_line_length > 0 {
+                        line_count += 1
+                    };
+                    current_line_length = line.len();
+                } else {
+                    current_line_length += line.len();
+                };
+            }
+            (line_count as f32) * H_HEIGHT
+        });
+        if vertical { Size::new(block_size, inline_size) } else { Size::new(inline_size, block_size) }
+    };
+
+    Measured::size(known.width.get().unwrap_or(computed.width), known.height.get().unwrap_or(computed.height))
 }
 
 pub fn run(root: &mut Handle<Node>, viewport: Size<f32>, cache: Option<&dyn MeasureCache<f32>>) -> (Size<f32>, Stats, u32) {
