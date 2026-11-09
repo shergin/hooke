@@ -14,17 +14,17 @@
 //!    descending, and writes each child's offset into its own list.
 //! 5. **Record.** Memo or slot, size, `has_new_layout`, and clear `touched`.
 
-mod provisional;
+mod flexbox;
+mod table;
 
 use crate::children::Slot;
-use crate::geometry::{Point, Size};
+use crate::geometry::{Axis, Point, Size};
 use crate::measure::{Available, Measure, MeasureCache, MeasureInput, Measured};
 use crate::scalar::{Opt, Scalar};
 use crate::state::{ConstraintKey, NodeKind};
 use crate::style::{slot, BoxSizing, Direction, Display, Length};
 use crate::tree::LayoutNode;
 use crate::Handle;
-use alloc::collections::BTreeMap;
 use alloc::vec::Vec;
 use core::fmt;
 use core::marker::PhantomData;
@@ -33,14 +33,58 @@ use core::sync::atomic::{AtomicBool, Ordering};
 /// Per-pass temporaries, reused across passes. After warm-up a pass allocates nothing beyond
 /// what copy-on-write demands.
 pub struct Scratch<S: Scalar> {
-    item_pool: Vec<Vec<provisional::Item<S>>>,
-    index_pool: Vec<Vec<u32>>,
-    leaf_table: BTreeMap<(usize, ConstraintKey), Measured<S>>,
+    items: Pool<flexbox::Item<S>>,
+    lines: Pool<flexbox::Line<S>>,
+    indices: Pool<u32>,
+    /// Leaf measurements of this pass, by node address and key.
+    leaf_table: table::PassTable<Measured<S>>,
+    /// Container size queries of this pass, by node address and key, so a question a node's
+    /// slots have evicted is still answered once per pass.
+    size_table: table::PassTable<(Size<S>, Opt<S>)>,
+}
+
+/// A pool of vectors handed out to nested containers. Every vector in the pool is kept at the
+/// largest capacity any of them has needed, because which vector serves which container depends
+/// on the order of the recursion: without that, an edit that changes the order can hand a small
+/// vector to a large container and allocate.
+struct Pool<T> {
+    free: Vec<Vec<T>>,
+    high: usize,
+}
+
+impl<T> Default for Pool<T> {
+    fn default() -> Self {
+        Pool { free: Vec::new(), high: 0 }
+    }
+}
+
+impl<T> Pool<T> {
+    fn take(&mut self) -> Vec<T> {
+        self.free.pop().unwrap_or_default()
+    }
+    fn give(&mut self, mut v: Vec<T>) {
+        v.clear();
+        if v.capacity() > self.high {
+            self.high = v.capacity();
+            for w in self.free.iter_mut() {
+                w.reserve_exact(self.high);
+            }
+        } else {
+            v.reserve_exact(self.high);
+        }
+        self.free.push(v);
+    }
 }
 
 impl<S: Scalar> Default for Scratch<S> {
     fn default() -> Self {
-        Scratch { item_pool: Vec::new(), index_pool: Vec::new(), leaf_table: BTreeMap::new() }
+        Scratch {
+            items: Pool::default(),
+            lines: Pool::default(),
+            indices: Pool::default(),
+            leaf_table: table::PassTable::default(),
+            size_table: table::PassTable::default(),
+        }
     }
 }
 
@@ -49,25 +93,29 @@ impl<S: Scalar> Scratch<S> {
     pub fn new() -> Self {
         Self::default()
     }
-    fn take_items(&mut self) -> Vec<provisional::Item<S>> {
-        self.item_pool.pop().unwrap_or_default()
+    fn take_items(&mut self) -> Vec<flexbox::Item<S>> {
+        self.items.take()
     }
-    fn give_items(&mut self, mut v: Vec<provisional::Item<S>>) {
-        v.clear();
-        self.item_pool.push(v);
+    fn give_items(&mut self, v: Vec<flexbox::Item<S>>) {
+        self.items.give(v)
+    }
+    fn take_lines(&mut self) -> Vec<flexbox::Line<S>> {
+        self.lines.take()
+    }
+    fn give_lines(&mut self, v: Vec<flexbox::Line<S>>) {
+        self.lines.give(v)
     }
     fn take_indices(&mut self) -> Vec<u32> {
-        self.index_pool.pop().unwrap_or_default()
+        self.indices.take()
     }
-    fn give_indices(&mut self, mut v: Vec<u32>) {
-        v.clear();
-        self.index_pool.push(v);
+    fn give_indices(&mut self, v: Vec<u32>) {
+        self.indices.give(v)
     }
 }
 
 impl<S: Scalar> fmt::Debug for Scratch<S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Scratch").field("pooled_item_vecs", &self.item_pool.len()).finish()
+        f.debug_struct("Scratch").field("pooled_item_vecs", &self.items.free.len()).finish()
     }
 }
 
@@ -76,11 +124,11 @@ impl<S: Scalar> fmt::Debug for Scratch<S> {
 pub struct Stats {
     /// Nodes considered, including those answered by a probe.
     pub visited: u32,
-    /// Answers served from a node's final-layout memo without descending.
+    /// Answers served from a node's final-layout memo or measurement slots without descending.
     pub memo_hits: u32,
-    /// Answers served from a node's persistent measurement slots.
+    /// Leaf answers served from a node's persistent measurement slots inside the leaf path.
     pub slot_hits: u32,
-    /// Leaf answers served from the per-pass table.
+    /// Answers served from the per-pass tables.
     pub pass_table_hits: u32,
     /// Leaf answers served from the shared cache.
     pub shared_hits: u32,
@@ -137,7 +185,8 @@ impl<S: Scalar> fmt::Debug for LayoutCx<'_, S> {
 /// How the root is constrained.
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub struct RootConstraints<S: Scalar> {
-    /// Space available to the root on each axis.
+    /// Space available to the root on each axis. An auto-sized root is `fit-content` in a
+    /// definite width and content-sized in height; its intrinsic size under the keywords.
     pub available: Size<Available<S>>,
     /// Sizes imposed on the root, overriding its style.
     pub known: Size<Opt<S>>,
@@ -199,6 +248,7 @@ pub fn layout<N: LayoutNode, M: Measure<N>>(
 ) -> Result<Size<N::Scalar>, Cancelled> {
     if cx.depth == 0 {
         cx.scratch.leaf_table.clear();
+        cx.scratch.size_table.clear();
         cx.stats = Stats::default();
     }
     cx.depth += 1;
@@ -207,7 +257,10 @@ pub fn layout<N: LayoutNode, M: Measure<N>>(
         d => d,
     };
     let parent_size = constraints.available.map(|a| a.definite());
-    let input = Input::new(constraints.known, constraints.available, parent_size, direction).finalize();
+    // The root's own margins come out of the space available to it, as a parent would do.
+    let margin = root.parts().style.resolve_edges(slot::MARGIN, parent_size.width).sums();
+    let available = Size::new(constraints.available.width.shrink(margin.width), constraints.available.height.shrink(margin.height));
+    let input = Input::new(constraints.known, available, parent_size, direction).finalize();
     let result = Pass { cx, measure, _n: PhantomData }.visit(root, input).map(|(size, _)| size);
     cx.depth -= 1;
     result
@@ -225,7 +278,10 @@ pub(crate) struct Input<S: Scalar> {
     pub direction: Direction,
     /// Per axis: the imposed size is not definite (not a percentage basis for children).
     pub indefinite: Size<bool>,
-    /// Asks for the content size: the node's own size, min and max styles are ignored.
+    /// Asks for the content size: on axes without an imposed size, the node's own size, min
+    /// and max properties (and aspect ratio) are ignored. This is how a container asks an item
+    /// for its flex base size or its contributions; the item's properties are the container's
+    /// business.
     pub content_size: bool,
     /// True for a final layout, which positions children and writes the node's size; false for
     /// a size query, which only answers how big the node would be.
@@ -240,22 +296,31 @@ impl<S: Scalar> Input<S> {
         direction: Direction,
     ) -> Self {
         let mut flags = 0;
-        let axis_bits = |axis: crate::Axis, flag: u32, flags: &mut u32| match known.get(axis).get() {
+        let axis_bits = |axis: Axis, flag: u32, flags: &mut u32| match known.get(axis).get() {
             Some(v) => {
                 *flags |= flag;
                 v.key_bits()
             }
             None => available.get(axis).key_bits(),
         };
-        let w = axis_bits(crate::Axis::Horizontal, ConstraintKey::KNOWN_W, &mut flags);
-        let h = axis_bits(crate::Axis::Vertical, ConstraintKey::KNOWN_H, &mut flags);
+        let w = axis_bits(Axis::Horizontal, ConstraintKey::KNOWN_W, &mut flags);
+        let h = axis_bits(Axis::Vertical, ConstraintKey::KNOWN_H, &mut flags);
         if direction == Direction::Rtl {
             flags |= ConstraintKey::RTL;
         }
         flags |= ConstraintKey::COMPUTE_SIZE;
         let key =
             ConstraintKey::new([w, h], [parent_size.width.key_bits(), parent_size.height.key_bits()], flags);
-        Input { key, known, available, parent_size, direction, indefinite: Size::new(false, false), content_size: false, final_layout: false }
+        Input {
+            key,
+            known,
+            available,
+            parent_size,
+            direction,
+            indefinite: Size::new(false, false),
+            content_size: false,
+            final_layout: false,
+        }
     }
     /// Marks imposed sizes as indefinite, per axis. Only axes with an imposed size are marked;
     /// only the keys of containers carry it (see `Pass::node_key`).
@@ -266,8 +331,8 @@ impl<S: Scalar> Input<S> {
         );
         self
     }
-    /// Asks for the content size (Taffy's `SizingMode::ContentSize`).
-    /// Only the keys of nodes it can affect carry it (see `Pass::node_key`).
+    /// Asks for the content size. Only the keys of nodes it can affect carry it (see
+    /// `Pass::node_key`).
     pub(crate) fn content_size(mut self) -> Self {
         self.content_size = true;
         self
@@ -295,13 +360,14 @@ pub(crate) struct Pass<'c, 'a, N: LayoutNode, M> {
 }
 
 impl<'c, 'a, N: LayoutNode, M: Measure<N>> Pass<'c, 'a, N, M> {
-    /// The key a node's answers are stored under. A measured leaf whose style has no
-    /// percentages cannot depend on its containing block, so the parent size is dropped and the
-    /// same answer serves every parent context.
+    /// The key a node's answers are stored under. A node whose own style has no percentages (or
+    /// `stretch`) cannot depend on its containing block's size: its children resolve against
+    /// its own size, and the space available to it is in the key already. So the parent size is
+    /// dropped and the same answer serves every parent context.
     fn node_key(node: &N, input: &Input<N::Scalar>) -> ConstraintKey {
         let p = node.parts();
         let measured = p.state.kind() == NodeKind::Measured;
-        let mut key = if measured && !p.style.uses_percentages() { input.key.without_parent() } else { input.key };
+        let mut key = if p.style.uses_percentages() { input.key } else { input.key.without_parent() };
         // Definiteness only changes how a container resolves its children's percentages.
         if !measured {
             if input.indefinite.width {
@@ -311,12 +377,13 @@ impl<'c, 'a, N: LayoutNode, M: Measure<N>> Pass<'c, 'a, N, M> {
                 key = key.with_flag(ConstraintKey::INDEFINITE_H);
             }
         }
-        // A content-size question differs only for a leaf with its own size, min or max styles.
-        let sized = |l: Length<N::Scalar>| matches!(l, Length::Px(_) | Length::Percent(_));
+        // A content-size question differs only for a node with its own size, min or max styles
+        // (or an aspect ratio) on an axis the question leaves open.
         let s = p.style;
+        let sized = |l: Length<N::Scalar>| !matches!(l, Length::Auto | Length::None);
         if input.content_size
-            && measured
-            && [s.width(), s.height(), s.min_width(), s.min_height(), s.max_width(), s.max_height()].into_iter().any(sized)
+            && ([s.width(), s.height(), s.min_width(), s.min_height(), s.max_width(), s.max_height()].into_iter().any(sized)
+                || s.aspect_ratio().is_some())
         {
             key.with_flag(ConstraintKey::CONTENT_SIZE)
         } else {
@@ -362,6 +429,15 @@ impl<'c, 'a, N: LayoutNode, M: Measure<N>> Pass<'c, 'a, N, M> {
             self.cx.stats.memo_hits += 1;
             return Ok(hit);
         }
+        // A container size query answered earlier in this pass (its slots may have evicted it).
+        let is_container = (**handle).parts().state.kind() != NodeKind::Measured;
+        if is_container && !input.is_final() {
+            let addr = &**handle as *const N as usize;
+            if let Some(hit) = self.cx.scratch.size_table.get(addr, &Self::node_key(&**handle, &input)) {
+                self.cx.stats.pass_table_hits += 1;
+                return Ok(hit);
+            }
+        }
 
         // 2. make unique
         if Handle::get_mut(handle).is_none() {
@@ -389,14 +465,17 @@ impl<'c, 'a, N: LayoutNode, M: Measure<N>> Pass<'c, 'a, N, M> {
         } else {
             match kind {
                 NodeKind::Measured => self.measure_leaf(node, input)?,
-                // Phase 0: a `contents` node is laid out as a container of its own.
-                NodeKind::Container | NodeKind::Contents => provisional::layout_container(self, node, input)?,
+                // A `contents` node reached directly (as a root) is laid out as a container.
+                NodeKind::Container | NodeKind::Contents => flexbox::layout_container(self, node, input)?,
             }
         };
 
         // 5. record. Only a final layout writes the node's size; size queries leave it alone,
         // so a memo hit always finds the stored size equal to the memoised one.
         let key = Self::node_key(node, &input);
+        if is_container && !input.is_final() {
+            self.cx.scratch.size_table.insert(node as *const N as usize, key, (size, baseline));
+        }
         let p = node.parts_mut();
         if input.is_final() {
             p.state.record_memo(key, size, baseline);
@@ -408,42 +487,69 @@ impl<'c, 'a, N: LayoutNode, M: Measure<N>> Pass<'c, 'a, N, M> {
         Ok((size, baseline))
     }
 
-    /// Sizes child `i` of `node` under `input`, probing before making anything unique.
-    pub(crate) fn visit_child(
+    /// Visits the descendant of `node` at `path` (a child, or a child of `display: contents`
+    /// nodes), probing before making anything on the path unique.
+    pub(crate) fn visit_path(
         &mut self,
         node: &mut N,
-        i: usize,
+        path: &[u32],
         input: Input<N::Scalar>,
-    ) -> Result<Size<N::Scalar>, Cancelled> {
+    ) -> Result<Answer<N::Scalar>, Cancelled> {
         let probed = {
-            let p = node.parts();
-            Self::probe(&p.children[i].node, &input)
+            let mut n: &N = node;
+            for &i in path {
+                n = &n.parts().children[i as usize].node;
+            }
+            Self::probe(n, &input)
         };
-        if let Some((size, _)) = probed {
+        if let Some(hit) = probed {
             self.cx.stats.visited += 1;
             self.cx.stats.memo_hits += 1;
-            return Ok(size);
+            return Ok(hit);
         }
-        let p = node.parts_mut();
-        let (list, cloned) = p.children.cow();
+        let slot = self.slot_mut(node, path);
+        self.visit(&mut slot.node, input)
+    }
+
+    /// Mutable access to the slot at `path`, cloning shared lists and intermediate
+    /// (`display: contents`) nodes on the way.
+    fn slot_mut<'n>(&mut self, node: &'n mut N, path: &[u32]) -> &'n mut Slot<N> {
+        let (list, cloned) = node.parts_mut().children.cow();
         if cloned {
             self.cx.stats.lists_cloned += 1;
         }
-        self.visit(&mut list[i].node, input).map(|(size, _)| size)
+        let mut slot: &'n mut Slot<N> = &mut list[path[0] as usize];
+        for &i in &path[1..] {
+            if Handle::get_mut(&mut slot.node).is_none() {
+                self.cx.stats.nodes_cloned += 1;
+            }
+            let inner: &'n mut N = Handle::make_mut(&mut slot.node);
+            let (list, cloned) = inner.parts_mut().children.cow();
+            if cloned {
+                self.cx.stats.lists_cloned += 1;
+            }
+            slot = &mut list[i as usize];
+        }
+        slot
     }
 
-    /// Writes child `i`'s offset into `node`'s list, cloning the list only if the value changed.
-    pub(crate) fn set_offset(&mut self, node: &mut N, i: usize, offset: Point<N::Scalar>) {
-        let p = node.parts_mut();
-        let current = p.children[i].offset;
+    /// Writes the offset of the descendant at `path` into its parent's list, cloning only if
+    /// the value changed. A `display: contents` node on the path keeps a zero offset and size.
+    pub(crate) fn set_offset_path(&mut self, node: &mut N, path: &[u32], offset: Point<N::Scalar>) {
+        let current = {
+            let mut n: &N = node;
+            for &i in &path[..path.len() - 1] {
+                n = &n.parts().children[i as usize].node;
+            }
+            let list = n.parts().children;
+            let slot = &list[*path.last().unwrap() as usize];
+            slot.offset
+        };
         if current.x.key_bits() == offset.x.key_bits() && current.y.key_bits() == offset.y.key_bits() {
             return;
         }
-        let (list, cloned) = p.children.cow();
-        if cloned {
-            self.cx.stats.lists_cloned += 1;
-        }
-        list[i].offset = offset;
+        let slot = self.slot_mut(node, path);
+        slot.offset = offset;
     }
 
     /// A measured leaf: style sizes first, then slots, the per-pass table, the shared cache,
@@ -451,30 +557,73 @@ impl<'c, 'a, N: LayoutNode, M: Measure<N>> Pass<'c, 'a, N, M> {
     fn measure_leaf(&mut self, node: &mut N, input: Input<N::Scalar>) -> Result<Answer<N::Scalar>, Cancelled> {
         type S<N> = <N as LayoutNode>::Scalar;
         let style = *node.parts().style;
-        let pb = provisional::padding_border(&style, input.parent_size.width);
-        let pb_sum = pb.sums();
+        let direction = match style.direction() {
+            Direction::Inherit => input.direction,
+            d => d,
+        };
+        let inset = flexbox::content_inset(&style, input.parent_size.width, direction);
+        let inset_sum = inset.sums();
+        let pb_sum = flexbox::padding_border(&style, input.parent_size.width).sums();
         let content_box = style.box_sizing() == BoxSizing::ContentBox;
+        let to_bb = |axis: Axis, v: S<N>| if content_box { v + pb_sum.get(axis) } else { v };
+        let bounds = |axis: Axis| -> (Opt<S<N>>, Opt<S<N>>) {
+            if input.content_size {
+                return (Opt::NONE, Opt::NONE);
+            }
+            let (_, min_slot, max_slot) = slot::sizing(axis);
+            let parent = input.parent_size.get(axis);
+            (style.resolve(min_slot, parent).map(|v| to_bb(axis, v)), style.resolve(max_slot, parent).map(|v| to_bb(axis, v)))
+        };
 
-        // Border-box sizes decided before measuring: imposed by the parent, or set in the style.
-        let decided: Size<Opt<S<N>>> = Size::from_fn(|axis| {
+        // Border-box sizes decided before measuring: imposed by the parent, or set in the style
+        // (not when the question is for the content size).
+        let mut keyword: Size<Option<Available<S<N>>>> = Size::new(None, None);
+        let mut decided: Size<Opt<S<N>>> = Size::from_fn(|axis| {
             if input.known.get(axis).is_some() {
                 return input.known.get(axis);
             }
-            // TAFFY QUIRK: under a content-size question the leaf's own size, min and max styles
-            // are ignored (Taffy's `SizingMode::ContentSize`); the hypothetical size clamps later.
             if input.content_size {
                 return Opt::NONE;
             }
-            let (size_slot, min_slot, max_slot) = slot::sizing(axis);
+            let (size_slot, _, _) = slot::sizing(axis);
             let parent = input.parent_size.get(axis);
-            let to_bb = |v: S<N>| if content_box { v + pb_sum.get(axis) } else { v };
-            let min = style.resolve(min_slot, parent).map(to_bb);
-            let max = style.resolve(max_slot, parent).map(to_bb);
-            style.resolve(size_slot, parent).map(to_bb).map(|v| v.clamp_opt(min, max))
+            let (min, max) = bounds(axis);
+            match style.length(size_slot) {
+                Length::MinContent => {
+                    keyword.set(axis, Some(Available::MinContent));
+                    Opt::NONE
+                }
+                Length::MaxContent => {
+                    keyword.set(axis, Some(Available::MaxContent));
+                    Opt::NONE
+                }
+                Length::Stretch => {
+                    let margins = style.resolve_edges(slot::MARGIN, input.parent_size.width).sum(axis);
+                    parent.map(|p| (p - margins).max(S::<N>::ZERO).clamp_opt(min, max))
+                }
+                _ => style.resolve(size_slot, parent).map(|v| to_bb(axis, v)).map(|v| v.clamp_opt(min, max)),
+            }
         });
+        let ratio = if input.content_size { Opt::NONE } else { style.aspect_ratio() };
+        if let Some(r) = ratio.get() {
+            let transfer = |from: Axis, v: S<N>| {
+                let inner = if content_box { (v - pb_sum.get(from)).max(S::<N>::ZERO) } else { v };
+                let other = match from {
+                    Axis::Horizontal => inner / r,
+                    Axis::Vertical => inner * r,
+                };
+                let (min, max) = bounds(from.cross());
+                (if content_box { other + pb_sum.get(from.cross()) } else { other }).clamp_opt(min, max)
+            };
+            match (decided.width.get(), decided.height.get()) {
+                (Some(w), None) => decided.height = Opt::some(transfer(Axis::Horizontal, w)),
+                (None, Some(h)) => decided.width = Opt::some(transfer(Axis::Vertical, h)),
+                _ => {}
+            }
+        }
 
         if let (Some(w), Some(h)) = (decided.width.get(), decided.height.get()) {
-            return Ok((Size::new(w, h), Opt::NONE));
+            return Ok((Size::new(w.max(pb_sum.width), h.max(pb_sum.height)), Opt::NONE));
         }
 
         // Cached answers, in order of cost.
@@ -487,10 +636,10 @@ impl<'c, 'a, N: LayoutNode, M: Measure<N>> Pass<'c, 'a, N, M> {
             self.cx.stats.slot_hits += 1;
             return Ok(hit);
         }
-        let table_key = (node as *const N as usize, key);
-        let cached: Option<Measured<S<N>>> = if let Some(m) = self.cx.scratch.leaf_table.get(&table_key) {
+        let addr = node as *const N as usize;
+        let cached: Option<Measured<S<N>>> = if let Some(m) = self.cx.scratch.leaf_table.get(addr, &key) {
             self.cx.stats.pass_table_hits += 1;
-            Some(*m)
+            Some(m)
         } else if content_id != 0 {
             match self.cx.cache.and_then(|c| c.get(content_id, &key, self.cx.epoch)) {
                 Some(m) => {
@@ -508,18 +657,21 @@ impl<'c, 'a, N: LayoutNode, M: Measure<N>> Pass<'c, 'a, N, M> {
             None => {
                 self.cx.stats.measured += 1;
                 let available = Size::from_fn(|axis| match decided.get(axis).get() {
-                    Some(v) => Available::Definite((v - pb_sum.get(axis)).max(S::<N>::ZERO)),
-                    None => input.available.get(axis).shrink(pb_sum.get(axis)),
+                    Some(v) => Available::Definite((v - inset_sum.get(axis)).max(S::<N>::ZERO)),
+                    None => match keyword.get(axis) {
+                        Some(k) => k,
+                        None => input.available.get(axis).shrink(inset_sum.get(axis)),
+                    },
                 });
                 let measure_input = MeasureInput {
                     known: Size::new(
-                        decided.width.map(|v| (v - pb_sum.width).max(S::<N>::ZERO)),
-                        decided.height.map(|v| (v - pb_sum.height).max(S::<N>::ZERO)),
+                        decided.width.map(|v| (v - inset_sum.width).max(S::<N>::ZERO)),
+                        decided.height.map(|v| (v - inset_sum.height).max(S::<N>::ZERO)),
                     ),
                     available,
                 };
                 let m = self.measure.measure(node, measure_input, self.cx);
-                self.cx.scratch.leaf_table.insert(table_key, m);
+                self.cx.scratch.leaf_table.insert(addr, key, m);
                 if content_id != 0
                     && let Some(c) = self.cx.cache
                 {
@@ -530,23 +682,23 @@ impl<'c, 'a, N: LayoutNode, M: Measure<N>> Pass<'c, 'a, N, M> {
         };
 
         // Content box back to border box, decided axes winning, clamped by the style's bounds.
-        let size = Size::from_fn(|axis| match decided.get(axis).get() {
+        let mut size = Size::from_fn(|axis| match decided.get(axis).get() {
             Some(v) => v,
-            None if input.content_size => measured.size.get(axis) + pb_sum.get(axis),
             None => {
-                let (_, min_slot, max_slot) = slot::sizing(axis);
-                let parent = input.parent_size.get(axis);
-                let to_bb = |v: S<N>| if content_box { v + pb_sum.get(axis) } else { v };
-                let min = style.resolve(min_slot, parent).map(to_bb);
-                let max = style.resolve(max_slot, parent).map(to_bb);
-                (measured.size.get(axis) + pb_sum.get(axis)).clamp_opt(min, max)
+                let (min, max) = bounds(axis);
+                (measured.size.get(axis) + inset_sum.get(axis)).clamp_opt(min, max)
             }
         });
-        let baseline = measured.first_baseline.map(|b| b + pb.top);
+        // A ratio-dependent height is at least the transferred width.
+        if let (Some(r), None) = (ratio.get(), decided.height.get()) {
+            let inner_w = if content_box { (size.width - pb_sum.width).max(S::<N>::ZERO) } else { size.width };
+            let via = if content_box { inner_w / r + pb_sum.height } else { inner_w / r };
+            let (min, max) = bounds(Axis::Vertical);
+            size.height = size.height.max(via.clamp_opt(min, max));
+        }
+        size.width = size.width.max(pb_sum.width);
+        size.height = size.height.max(pb_sum.height);
+        let baseline = measured.first_baseline.map(|b| b + inset.top);
         Ok((size, baseline)) // recorded by `visit`
     }
 }
-
-// Keep `Slot` in scope for documentation links in this module.
-#[allow(dead_code)]
-fn _slot_doc_anchor<N: LayoutNode>(_: &Slot<N>) {}

@@ -80,6 +80,17 @@ impl ConstraintKey {
     pub(crate) fn without_parent(self) -> Self {
         ConstraintKey { parent: [0; 2], ..self }
     }
+    /// One of the key's five words, for hashing: the two axes, the two parent words, the flags.
+    #[inline]
+    pub(crate) fn word(&self, i: usize) -> u32 {
+        match i {
+            0 => self.axis[0],
+            1 => self.axis[1],
+            2 => self.parent[0],
+            3 => self.parent[1],
+            _ => self.flags,
+        }
+    }
     /// The key with `flag` set.
     #[inline]
     pub(crate) fn with_flag(self, flag: u32) -> Self {

@@ -50,7 +50,8 @@ pub trait Scalar:
     fn floor(self) -> Self;
     /// Smallest integer not less than `self`.
     fn ceil(self) -> Self;
-    /// Nearest integer, halves away from zero. One implementation for every target.
+    /// Nearest integer, halves toward positive infinity (`-0.5` rounds to `0`), as Yoga's pixel
+    /// grid, Taffy and JavaScript's `Math.round` do. One implementation for every target.
     fn round(self) -> Self;
     /// Absolute value.
     fn abs(self) -> Self;
@@ -170,15 +171,8 @@ impl Scalar for f32 {
     }
     #[inline]
     fn round(self) -> Self {
-        let t = trunc_f32(self);
-        let d = self - t;
-        if d >= 0.5 {
-            t + 1.0
-        } else if d <= -0.5 {
-            t - 1.0
-        } else {
-            t
-        }
+        let f = Scalar::floor(self);
+        if self - f >= 0.5 { f + 1.0 } else { f }
     }
     #[inline]
     fn abs(self) -> Self {
@@ -248,15 +242,8 @@ impl Scalar for f64 {
     }
     #[inline]
     fn round(self) -> Self {
-        let t = trunc_f64(self);
-        let d = self - t;
-        if d >= 0.5 {
-            t + 1.0
-        } else if d <= -0.5 {
-            t - 1.0
-        } else {
-            t
-        }
+        let f = Scalar::floor(self);
+        if self - f >= 0.5 { f + 1.0 } else { f }
     }
     #[inline]
     fn abs(self) -> Self {
@@ -394,11 +381,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn rounding_is_half_away_from_zero_and_std_free() {
-        assert_eq!(2.5f32.round(), 3.0);
-        assert_eq!((-2.5f32).round(), -3.0);
-        assert_eq!(2.4f32.round(), 2.0);
-        assert_eq!((-0.4f32).round(), 0.0);
+    fn rounding_is_half_up_and_std_free() {
+        assert_eq!(Scalar::round(2.5f32), 3.0);
+        assert_eq!(Scalar::round(-2.5f32), -2.0);
+        assert_eq!(Scalar::round(-0.5f32), 0.0);
+        assert_eq!(Scalar::round(2.4f32), 2.0);
+        assert_eq!(Scalar::round(-0.6f32), -1.0);
+        assert_eq!(Scalar::round(-0.4f32), 0.0);
         assert_eq!((-0.5f32).floor(), -1.0);
         assert_eq!((-0.5f32).ceil(), 0.0);
         assert_eq!(1e9f32.floor(), 1e9);

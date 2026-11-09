@@ -310,10 +310,10 @@ impl<S: Scalar> Style<S> {
         }
     }
 
-    /// True if any length is a percentage, which makes the node's size depend on its
-    /// containing block's size.
+    /// True if any length is a percentage or `stretch`, which makes the node's size depend on
+    /// its containing block's size.
     pub fn uses_percentages(&self) -> bool {
-        (0..slot::COUNT).any(|i| self.tag(i) == Unit::Percent)
+        (0..slot::COUNT).any(|i| matches!(self.tag(i), Unit::Percent | Unit::Stretch))
     }
 
     /// A 64-bit fingerprint over every layout-affecting field. The default
