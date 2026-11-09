@@ -67,14 +67,25 @@ pointer-equal subtrees; and cancellation.
 
 ## Status
 
-**Phase 0.** The storage layer and the host contract are complete: copy-on-write child lists,
+**Phase 1.** The storage layer and the host contract are complete: copy-on-write child lists,
 per-node layout state, the invalidation rules, the in-node and shared measurement caches and
 the concurrency contract.
 
-The container algorithm is **provisional**: a single-line flexbox without wrapping, baselines,
-the automatic minimum size or aspect ratio. It exists so the storage layer can be exercised,
-and it is compared frame by frame against [Taffy](https://github.com/DioxusLabs/taffy) on
-random trees in `tests/taffy_oracle.rs`. The spec-complete algorithm is the next phase.
+The container algorithm is the complete CSS Flexible Box Layout Level 1 algorithm: `order`,
+`display: none` and `display: contents`, both `box-sizing` values, `direction: rtl` and the
+`*-reverse` directions, wrapping with `wrap-reverse` and `align-content`, auto margins, the
+§4.5 automatic minimum size, `aspect-ratio` with min/max transfer, first-baseline alignment
+and container baselines, the `min-content`/`max-content`/`fit-content`/`stretch` keywords,
+scroll containers with a scrollbar gutter, relative insets, and absolutely positioned children
+against the §4.1 static-position rectangle of their parent. Chrome is the arbiter:
+`tests/chrome_fixtures.rs` lays out 2500 Chrome-recorded fixtures (Taffy v0.15.1's generated
+corpus plus cephal's divergence cases) and every frame agrees within 0.01; the list of
+expected failures in `tests/fixtures/expected_failures.txt` is empty. `tests/taffy_oracle.rs`
+is a second oracle on random trees, narrowed to the cases where Taffy agrees with Chrome.
+
+Out of scope for now: vertical writing modes, `visibility: collapse`, last-baseline alignment,
+`calc()`, `position: sticky` and `fixed`, fragmentation, `flex-wrap: balance`, and absolutely
+positioned children whose containing block is not their parent.
 
 ## Features
 
@@ -90,7 +101,8 @@ Without `sync` the crate builds for single-core targets without atomic compare-a
 ## Running
 
 ```sh
-cargo test                                            # unit, persistence and Taffy-oracle tests
+cargo test                                            # unit, Chrome fixture, persistence and oracle tests
+cargo test --test chrome_fixtures -- --nocapture      # the 2500 Chrome fixtures and their pass rate
 cargo test --test persistence                         # the copy-on-write and concurrency contract
 cargo run --example shadow_tree                       # the host embedding, step by step
 cargo build --no-default-features --features sync     # no_std, Arc handles

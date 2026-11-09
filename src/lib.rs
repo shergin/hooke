@@ -54,12 +54,21 @@
 //!
 //! # Status
 //!
-//! Phase 0. The storage layer, the host contract, the invalidation rules, the caches and the
-//! concurrency contract are the deliverable. The container algorithm is **provisional**: a
-//! single-line flexbox without wrapping, baselines, the automatic minimum size or aspect
-//! ratio. It exists so the storage layer can be exercised and compared against Taffy: the
-//! differential test in `tests/taffy_oracle.rs` lays out random trees with both engines and
-//! finds every frame equal within 0.01. The spec-complete algorithm is the next phase.
+//! Phase 1. The container algorithm is the complete CSS Flexible Box Layout Level 1 algorithm
+//! (§9), with `order`, `display: none` and `display: contents`, both `box-sizing` values,
+//! `direction: rtl` and the `*-reverse` directions, multi-line wrapping with `wrap-reverse` and
+//! `align-content`, auto margins, the §4.5 automatic minimum size, `aspect-ratio` with min/max
+//! transfer, first-baseline alignment and container baselines (§8.5), the `min-content`,
+//! `max-content`, `fit-content` and `stretch` keywords on sizes and `flex-basis`, scroll
+//! containers with a scrollbar gutter, `position: relative` insets and absolutely positioned
+//! children placed against the §4.1 static-position rectangle of their parent. Chrome is the
+//! arbiter: `tests/chrome_fixtures.rs` lays out 2500 Chrome-recorded fixtures (Taffy's
+//! generated corpus plus cephal's divergence cases) and every frame agrees within 0.01.
+//!
+//! Not implemented: vertical writing modes, `visibility: collapse`, last-baseline alignment,
+//! `calc()`, `position: sticky` and `fixed`, fragmentation, `flex-wrap: balance`, and
+//! absolutely positioned children whose containing block is not their parent (the §4.1 static
+//! position is taken against the parent).
 //!
 //! # Features
 //!

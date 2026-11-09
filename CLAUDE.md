@@ -23,5 +23,11 @@ repository root (a single crate, not a workspace). Design documents and research
 - `cargo +stable build --no-default-features --features sync` and
   `cargo +stable build --no-default-features` (the `Rc` build) must compile: the crate is
   `no_std` with `alloc`.
-- `tests/taffy_oracle.rs` is the correctness arbiter for the provisional flexbox algorithm:
-  random trees are laid out by both engines and every frame is compared.
+- `tests/chrome_fixtures.rs` is the correctness arbiter: 2500 Chrome-recorded fixtures under
+  `tests/fixtures/`, compared frame by frame. A fixture that fails must be listed in
+  `tests/fixtures/expected_failures.txt` with a reason (`HOOKE_FIXTURES_UPDATE=1` rewrites the
+  list; `HOOKE_FIXTURE=<name> -- --nocapture` shows one fixture). The list is empty today.
+- `tests/taffy_oracle.rs` is a second oracle: random trees laid out by both hooke and Taffy,
+  narrowed to the cases where Taffy agrees with Chrome; each exclusion is justified in a comment.
+- `tests/deep_tree.rs` guards the deep-tree measurement bound and the no-allocation-after-warm-up
+  rule.
