@@ -1,0 +1,12 @@
+[package]
+name = "hooke"
+version = "0.0.0"
+edition = "2024"
+description = "A FlexBox layout library focused on concurrent rendering."
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/shergin/hooke"
+readme = "README.md"
+keywords = ["flexbox", "layout", "concurrent", "rendering"]
+categories = ["gui", "rendering"]
+
+[dependencies]
