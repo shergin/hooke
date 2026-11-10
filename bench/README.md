@@ -188,3 +188,48 @@ The full report of the first run is `notes/benchmarks/2026-11-09-stage2-full.md`
   one.
 - **Memory:** 460 to 850 bytes per node in hooke against Taffy's 960 to 1060; no engine
   allocates on a warm unchanged pass.
+
+## Profiling and optimisation (2026-11-09)
+
+The full report is `notes/benchmarks/2026-11-09-profile.md`. Profiles were taken with
+`bench/src/bin/profile.rs` and `tools/profile/xctrace_summary.py` (Instruments Time Profiler
+through xctrace; see `tools/profile/README.md`) on the same machine, hooke only, criterion default
+sample sizes, one quiet run per step.
+
+- **Where one text edit went** (text tree, 10k nodes, 325 us): `Pass::node_key` 26%, scanning all
+  21 style unit tags on every cache probe; item collection 27%, because the edited column was
+  collected three times: twice for the §4.5 automatic-minimum question (a min-content query that
+  ignores the column's own `width: 10%`, so an intrinsic pass and a full run over its 999 leaves)
+  and once for the final layout; probes about 14%; arithmetic over the 128-byte `Item`s about 10%.
+- **The path copy is not the problem.** The host's copy, including the 999-slot child list of the
+  edited column, was 2.4 us of 325 (0.7%); no chunked or persistent child list is warranted.
+- **Flat cold trees** ran the full container algorithm twice over zero items for every childless box.
+
+Six commits, all within the existing design and without public API change; every test and the
+equal-output gate (against Taffy and Cephal, every workload at 1k and 10k) pass:
+
+1. `f0844c1` Precompute the two style bits `node_key` reads: edit -24%, resize -33%, cold -10 to -27%.
+2. `2006ac4` Carry box-sizing in the item: no measurable change.
+3. `f3923b8` Defer the automatic minimum of fixed-size items: edit -63%, text_columns -58%, cold_wide -60%.
+4. `41a4eda` Resolve margins and insets once per item: edit -12%, resize -10%, cold -7 to -11%.
+5. `f7934c4` Probe once per miss, count clones without a second CAS: resize -9 to -13%.
+6. `19f8c5b` Size an empty container without running the algorithm: cold_wide -39%,
+   nested_vertical_stack -30%, fit_nesting -27%.
+
+Mean microseconds per operation, 1k / 10k nodes, from baseline `8b8859d`:
+
+| Benchmark | Baseline | Now | Nearest competitor |
+|---|---|---|---|
+| edit_text | 34.4 / 329 | 8.9 / 78 | Cephal 18.7 / 167 |
+| edit_random | 8.7 / 66 | 5.7 / 35 | Cephal 1.8 / 3.2 |
+| resize_text | 193 / 1862 | 96 / 974 | Taffy 468 / 5810 |
+| candidates hooke-fork | 35.0 / 327 | 8.6 / 76 | Taffy clone 140 / 1445 |
+| cold_wide_no_wrap_simple | 489 / 5154 | 89 / 914 | Cephal 100 / 1040 |
+| text_columns | 1378 / 15164 | 469 / 5055 | Taffy 2400 / 28200 |
+
+Not done: skipping the sibling re-flow when an edited child's answer is unchanged (a design
+extension; no workload measures it), a smaller `Item`, a cheaper container prologue for the
+no-percentage case (the remaining cold gap to Cephal on flat trees), and the `OwnedOnly` slot
+write policy (no workload writes a shared child). These are filtered hooke-only runs; the
+competitor numbers come from the stage-2 run on the same machine. A full run
+(`cargo bench -p hooke-bench` and the report binary) refreshes every table.
