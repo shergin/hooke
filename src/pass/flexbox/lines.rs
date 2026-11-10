@@ -79,9 +79,10 @@ pub(crate) fn line_length<S: Scalar>(ctx: &Ctx<S>, items: &[Item<S>]) -> S {
 
 /// §9.7: resolves the flexible lengths of one line, writing each item's `target`.
 ///
-/// Free space is handed out in Blink's formulation: each unfrozen item takes its share of the
-/// space *remaining* after the items before it, so the last item absorbs any rounding and the
-/// targets always sum to the line length when nothing is clamped.
+/// Every unfrozen item's share is computed from the round's free space and factor sum, as Blink
+/// does, not from a running remainder: subtracting each share from the remainder rounds once
+/// per item, and over fifteen thousand `flex: 1` items in a 10,000px row that drift reached
+/// 0.7px while the items came out unequal.
 pub(crate) fn resolve_flexible_lengths<S, N, M>(
     pass: &mut Pass<'_, '_, N, M>,
     node: &mut N,
@@ -156,24 +157,16 @@ where
         // c. Distribute.
         if remaining != S::ZERO && factor_sum > S::ZERO {
             if growing {
-                let mut rem = remaining;
-                let mut fsum = factor_sum;
                 for it in items.iter_mut().filter(|it| !it.has(F_FROZEN)) {
-                    let share = if fsum > S::ZERO { rem.mul_div(it.grow, fsum) } else { S::ZERO };
-                    it.target = it.base + share;
-                    rem = rem - share;
-                    fsum = fsum - it.grow;
+                    it.target = it.base + remaining.mul_div(it.grow, factor_sum);
                 }
             } else {
                 let scaled = |it: &Item<S>| it.shrink * it.inner_base(main);
-                let mut ssum = items.iter().filter(|it| !it.has(F_FROZEN)).fold(S::ZERO, |acc, it| acc + scaled(it));
-                let mut rem = remaining.abs();
+                let ssum = items.iter().filter(|it| !it.has(F_FROZEN)).fold(S::ZERO, |acc, it| acc + scaled(it));
+                let rem = remaining.abs();
                 for it in items.iter_mut().filter(|it| !it.has(F_FROZEN)) {
-                    let s = scaled(it);
-                    let share = if ssum > S::ZERO { rem.mul_div(s, ssum) } else { S::ZERO };
+                    let share = if ssum > S::ZERO { rem.mul_div(scaled(it), ssum) } else { S::ZERO };
                     it.target = it.base - share;
-                    rem = rem - share;
-                    ssum = ssum - s;
                 }
             }
         }

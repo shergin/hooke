@@ -173,7 +173,8 @@ The full report of the first run is `notes/benchmarks/2026-11-09-stage2-full.md`
 - **Equal output.** All four engines agree on 38 of 45 workload sizes. The gate found one hooke
   bug before the run (the `space-between` fallback on an overflowing reversed line, fixed in
   `59858e5` after checking Chromium), one hooke precision issue (100,000 equal `flex: 1 1 0` items
-  come out 0.10002 wide instead of 0.1: f32 error accumulating in the sequential distribution), two
+  come out 0.10002 wide instead of 0.1: f32 error accumulating in the sequential distribution;
+  fixed since, shares now come from the round's totals), two
   Yoga semantics (flex base sizes clamped by min/max before distribution; a dropped `flex-start`
   cross margin in wrapping containers) and one Taffy flex-base-size error on wrapping text in
   unstretched items.
