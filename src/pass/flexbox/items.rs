@@ -492,6 +492,13 @@ where
             // can only matter when the line shrinks; it is resolved there (`resolve_auto_min`).
             flags |= F_AUTO_MIN;
             it.pb.get(main)
+        } else if it.size.get(main).get().is_some_and(|s| base >= s) {
+            // The automatic minimum is clamped by the specified size suggestion, so with a
+            // definite main size no larger than the base it cannot raise the hypothetical main
+            // size either: it matters only when the line shrinks. Deferring it saves the
+            // min-content question (a size query of the whole subtree) for every fixed-size item.
+            flags |= F_AUTO_MIN;
+            it.pb.get(main)
         } else {
             // Content size suggestion: the min-content main size. In the block axis that is the
             // content height already measured for a content-based basis.
