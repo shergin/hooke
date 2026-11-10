@@ -1,8 +1,11 @@
 # Hooke
 
 A flexbox-only layout engine for persistent, copy-on-write UI trees. The `hooke` crate is at the
-repository root (a single crate, not a workspace). Design documents and research notes are in
-`notes/` (`notes/reports/`, `notes/research_notes/`), which is ignored by git.
+repository root; `bench/` (crate `hooke-bench`, a workspace member, never published) holds the
+benchmark suite so that Taffy, Yoga and Cephal are not dependencies of `hooke`. Cargo commands
+run at the root address `hooke` alone; use `-p hooke-bench` for the suite. Design documents and
+research notes are in `notes/` (`notes/reports/`, `notes/research_notes/`, `notes/benchmarks/`),
+which is ignored by git.
 
 ## Who writes what
 

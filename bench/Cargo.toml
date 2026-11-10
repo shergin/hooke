@@ -1,0 +1,26 @@
+[package]
+name = "hooke-bench"
+version = "0.0.0"
+edition = "2024"
+publish = false
+description = "Benchmarks comparing hooke with Taffy, Yoga and Cephal on equal-output workloads."
+license = "MIT OR Apache-2.0"
+
+[features]
+default = []
+# Yoga (C++ through the `yoga` crate's cc/bindgen build). Off by default so the suite builds
+# without a C++ toolchain and libclang.
+yoga = ["dep:yoga"]
+
+[dependencies]
+hooke = { path = "..", features = ["std", "sync"] }
+taffy = { version = "0.15.1", default-features = false, features = ["std", "taffy_tree", "flexbox"] }
+cephal = { version = "0.2.0", default-features = false, features = ["flex"] }
+yoga = { version = "0.5.0", optional = true }
+
+[dev-dependencies]
+criterion = { version = "0.8.2", default-features = false, features = ["cargo_bench_support"] }
+
+[[bench]]
+name = "layout"
+harness = false

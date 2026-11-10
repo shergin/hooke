@@ -29,3 +29,9 @@ taffy = { version = "0.15.1", default-features = false, features = ["std", "taff
 [[example]]
 name = "shadow_tree"
 required-features = ["std", "sync"]
+
+# The benchmark suite is a separate crate so that its competitors never become dependencies of
+# `hooke`. Cargo commands run from this directory address the `hooke` package alone; use
+# `-p hooke-bench` for the suite.
+[workspace]
+members = ["bench"]
