@@ -18,6 +18,8 @@
 //!   `TaffyTree` is not `Send`).
 //!
 //! `HOOKE_BENCH_QUICK=1` or `--quick` runs only the two smaller sizes with fewer samples.
+//! An engine whose gate cold layout exceeds `HOOKE_BENCH_SLOW_SECS` (default 2 s) is `TooSlow`
+//! and is skipped like any other exclusion, so criterion never samples it.
 
 use criterion::{BenchmarkGroup, BenchmarkId, Criterion, Throughput, measurement::WallTime};
 use hooke_bench::engine::Engine;
@@ -67,7 +69,7 @@ fn configure(group: &mut BenchmarkGroup<'_, WallTime>, nodes: usize) {
     } else if nodes <= 20_000 {
         (20, 0.5, 2.0)
     } else {
-        (10, 0.5, 3.0)
+        (10, 0.5, 5.0)
     };
     group.sample_size(samples);
     group.warm_up_time(Duration::from_secs_f64(warm));

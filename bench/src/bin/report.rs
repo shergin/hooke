@@ -122,13 +122,24 @@ fn short(v: &Verdict) -> String {
         Verdict::Agrees => "agrees".into(),
         Verdict::Differs { node, .. } => format!("differs at #{node}"),
         Verdict::DidNotRun(_) => "did not run".into(),
+        Verdict::TooSlow { .. } => v.cell(),
     }
+}
+
+/// The gate's verdict that `engine` was too slow on `key`, if it was.
+fn too_slow(gated: &BTreeMap<(&'static str, &'static str), Gated>, key: (&'static str, &'static str), engine: &str) -> Option<f64> {
+    gated.get(&key)?.rows.iter().find(|r| r.engine == engine).and_then(|r| match r.cold {
+        Verdict::TooSlow { seconds } => Some(seconds),
+        _ => None,
+    })
 }
 
 /// One gate cell: cold, edit, resize.
 fn gate_cell(r: &Row) -> String {
-    if let Verdict::DidNotRun(_) = r.cold {
-        return "did not run".into();
+    match r.cold {
+        Verdict::DidNotRun(_) => return "did not run".into(),
+        Verdict::TooSlow { .. } => return r.cold.cell(),
+        _ => {}
     }
     let e = r.edit.as_ref().map(short).unwrap_or_else(|| "n/a".into());
     if r.cold.agrees() && r.edit.as_ref().is_none_or(Verdict::agrees) && r.resize.agrees() {
@@ -150,12 +161,19 @@ struct Mem {
     edit_bytes: u64,
 }
 
+/// The memory workload for one engine. Bounded like the gate: if the cold layout takes longer
+/// than [`gate::slow_secs`], nothing else is run and the error is "too slow".
 fn memory<E: Engine>(w: &Workload) -> Result<Mem, String> {
     catch_unwind(AssertUnwindSafe(|| {
         let before = alloc::snapshot();
         let mut e = E::build(&w.scene);
+        let start = std::time::Instant::now();
         e.layout();
+        let secs = start.elapsed().as_secs_f64();
         let built = alloc::snapshot().since(before);
+        if secs > gate::slow_secs() {
+            return Err(format!("too slow: {} s per layout, not sampled", gate::secs(secs)));
+        }
         let before = alloc::snapshot();
         e.layout();
         let warm = alloc::snapshot().since(before);
@@ -169,14 +187,24 @@ fn memory<E: Engine>(w: &Workload) -> Result<Mem, String> {
             None => Snapshot::default(),
         };
         drop(e);
-        Mem {
+        Ok(Mem {
             bytes_per_node: built.current as f64 / w.scene.len() as f64,
             warm_allocs: warm.count,
             edit_allocs: edit.count,
             edit_bytes: edit.total,
-        }
+        })
     }))
-    .map_err(|p| p.downcast_ref::<&str>().map(|s| s.to_string()).or_else(|| p.downcast_ref::<String>().cloned()).unwrap_or_default())
+    .unwrap_or_else(|p| {
+        Err(p.downcast_ref::<&str>().map(|s| s.to_string()).or_else(|| p.downcast_ref::<String>().cloned()).unwrap_or_default())
+    })
+}
+
+/// [`memory`], unless the gate already found the engine too slow on this workload size.
+fn memory_if<E: Engine>(gated: &BTreeMap<(&'static str, &'static str), Gated>, w: &Workload) -> Result<Mem, String> {
+    match too_slow(gated, (w.name, w.size), E::NAME) {
+        Some(secs) => Err(format!("too slow: {} s per layout, not sampled", gate::secs(secs))),
+        None => memory::<E>(w),
+    }
 }
 
 fn measure_calls<E: Engine>(w: &Workload) -> Option<u64> {
@@ -235,8 +263,11 @@ fn main() {
         out,
         "Every engine lays out the scene cold, then after the workload's text edit, then after its 10% resize; each \
          frame is compared with hooke's, node by node, absolute tolerance {} on x, y, width and height, unrounded. A \
-         cell reads `agrees` when all three agree. Nodes are numbered in pre-order, root 0.\n",
-        gate::TOLERANCE
+         cell reads `agrees` when all three agree. Nodes are numbered in pre-order, root 0. An engine whose first cold \
+         layout takes longer than {} s (`HOOKE_BENCH_SLOW_SECS`) is `too slow`: its edit and resize are skipped and it \
+         is not sampled on that workload size; the time shown is the gate's one layout.\n",
+        gate::TOLERANCE,
+        gate::slow_secs()
     )
     .unwrap();
     let others: Vec<&str> = ENGINES[1..].to_vec();
@@ -341,10 +372,10 @@ fn main() {
             }
             let w = workloads::make(name, size);
             let mut res: Vec<(&str, Result<Mem, String>)> =
-                vec![("hooke", memory::<HookeEngine>(&w)), ("taffy", memory::<TaffyEngine>(&w))];
+                vec![("hooke", memory_if::<HookeEngine>(&gated, &w)), ("taffy", memory_if::<TaffyEngine>(&gated, &w))];
             #[cfg(feature = "yoga")]
-            res.push(("yoga", memory::<hooke_bench::engines::yoga::YogaEngine>(&w)));
-            res.push(("cephal", memory::<CephalEngine>(&w)));
+            res.push(("yoga", memory_if::<hooke_bench::engines::yoga::YogaEngine>(&gated, &w)));
+            res.push(("cephal", memory_if::<CephalEngine>(&gated, &w)));
             for (engine, r) in res {
                 match r {
                     Ok(m) => writeln!(
@@ -356,6 +387,7 @@ fn main() {
                         if w.edit.is_some() { m.edit_bytes.to_string() } else { "n/a".into() },
                     )
                     .unwrap(),
+                    Err(e) if e.starts_with("too slow") => writeln!(out, "| {name} | {size} | {engine} | {e} | | | |").unwrap(),
                     Err(_) => writeln!(out, "| {name} | {size} | {engine} | did not run | | | |").unwrap(),
                 }
             }
@@ -443,6 +475,10 @@ fn write_group(
                 let nodes = gw.w.scene.len() as f64;
                 let row = gw.rows.iter().find(|r| r.engine == engine);
                 if let Some(reason) = row.and_then(|r| r.exclusion(g.family)) {
+                    if reason.starts_with("too slow") {
+                        excluded.push(format!("{engine} not sampled in {}/{size}: {reason}", g.group));
+                        return "not sampled (too slow)".into();
+                    }
                     if !reason.starts_with("did not run") {
                         excluded.push(format!("{engine} excluded from {}/{size}: {reason}", g.group));
                     }
@@ -467,6 +503,9 @@ fn write_group(
                 .map(|s| {
                     let w = &gated[&(g.workload, *s)].w;
                     let leaves = w.scene.text_leaves().count().max(1) as f64;
+                    if too_slow(gated, (g.workload, *s), engine).is_some() {
+                        return "not sampled (too slow)".into();
+                    }
                     f(w).map(|c| format!("{:.2}", c as f64 / leaves)).unwrap_or_else(|| "did not run".into())
                 })
                 .collect();

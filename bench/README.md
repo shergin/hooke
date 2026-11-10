@@ -38,7 +38,7 @@ looks there too, but an absolute path avoids the ambiguity. With `HOOKE_BENCH_QU
 also skips the 100k gate and memory runs. `notes/` is git-ignored.
 
 The full run takes some minutes: sample sizes and measurement times shrink with tree size
-(30 samples for about 1k nodes, 20 for 10k, 10 for 100k). Every benchmark binary runs on a thread
+(30 samples for about 1k nodes, 20 for 10k, 10 for 100k, with 1.5, 2 and 5 s of measurement). Every benchmark binary runs on a thread
 with a 1 GiB stack, because the deep workloads recurse once per level in every engine.
 
 ## Methodology
@@ -51,6 +51,16 @@ diverge in their incremental paths. An engine that differs is excluded from that
 tables (the report prints the first differing node with both frames); the other engines are
 still timed. An engine whose adapter panics (for example, one not implemented yet) is reported
 as "did not run".
+
+**Slow-engine guard.** The gate times each engine's first cold layout. If it takes longer than
+`HOOKE_BENCH_SLOW_SECS` seconds (default 2.0; hooke lays out 100k nodes in about 0.1 s), the
+verdict is `too slow`: the edit and resize phases are skipped, the engine is excluded from every
+timing family for that workload size, and criterion never samples it. The report prints
+`too slow: N s per layout, not sampled` in the gate table, with the gate's one layout as the
+measurement, and `not sampled (too slow)` in the timing tables. The memory workload is bounded
+the same way: one layout, and a too-slow engine is reported as such. The gate's own layout cannot be
+interrupted, so a full run still pays one slow layout per such cell (about a minute in all for
+Yoga at 100k on an M1 Pro).
 
 **One scene, one text model.** Each workload is a `Scene` (`src/scene.rs`): nodes in pre-order,
 with a style subset that every engine supports, configured as `box-sizing: border-box`. Every
@@ -132,6 +142,11 @@ revision, not 0.15.1.
 `percentage_and_ratio` is not ported: the scene's style subset has no `aspect-ratio`.
 
 ## Caveats
+
+- **Engines slower than the guard are not timed.** Yoga's cold layout of some scenes takes tens
+  of seconds (`perpendicular_expand_with_wrap` at 100k: about 36 s); such cells show only the
+  gate's single layout, not a criterion estimate. Raise `HOOKE_BENCH_SLOW_SECS` to sample them
+  anyway, at the cost of a run that may take hours.
 
 - **No instruction counts.** iai-callgrind needs Valgrind, which does not run on macOS on Apple
   Silicon. All timings are wall-clock.

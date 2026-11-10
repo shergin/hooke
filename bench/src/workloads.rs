@@ -609,6 +609,13 @@ fn container_style(rng: &mut Rng, base: Style, percent_ok: bool) -> Style {
         column_gap: rng.below(6) as f32,
         ..base
     };
+    // `space-between` with negative free space falls back to `flex-start` (css-flexbox-1 §8.2),
+    // which in a reversed container overflows past main-start, as Chromium does; Taffy clamps
+    // the line to the start edge. The oracle's exclusion: a reversed container never gets
+    // `space-between` (`tests/taffy_oracle.rs`, `container_style`).
+    if matches!(s.direction, FlexDirection::RowReverse | FlexDirection::ColumnReverse) && s.justify == Justify::SpaceBetween {
+        s.justify = Justify::SpaceAround;
+    }
     if rng.chance(40) {
         s.width = Dim::Px(60.0 + rng.below(300) as f32);
     }
