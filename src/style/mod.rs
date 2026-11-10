@@ -104,6 +104,17 @@ pub(crate) mod slot {
     }
 }
 
+/// Bits of `Style::derived`: facts about the tags that the engine checks on every cache probe,
+/// recomputed by `set_length`, the only writer of the tags.
+mod derived {
+    /// Some length is a percentage or `stretch`: the node's size can depend on its containing
+    /// block.
+    pub const PERCENT: u8 = 1 << 0;
+    /// Some size, min or max property is not `auto`/`none`: a content-size question differs
+    /// from an ordinary one for this node.
+    pub const SIZED: u8 = 1 << 1;
+}
+
 /// Bit fields of `Style::bits`, as `(shift, width)`, packed back to back with widths taken
 /// from the keyword enums themselves.
 mod bits {
@@ -136,7 +147,9 @@ mod bits {
 pub struct Style<S: Scalar = f32> {
     bits: u64,
     tags: [u8; slot::TAG_BYTES],
-    _pad: u8,
+    /// Bits derived from `tags` (see `derived`), kept in step by `set_length` so that the two
+    /// questions the engine asks about a style on every cache probe are one load each.
+    derived: u8,
     flex_grow: S,
     flex_shrink: S,
     lengths: [S; slot::COUNT],
@@ -171,7 +184,7 @@ impl<S: Scalar> Style<S> {
         let mut s = Style {
             bits: 0,
             tags: [0; slot::TAG_BYTES],
-            _pad: 0,
+            derived: 0,
             flex_grow: S::ZERO,
             flex_shrink: S::ONE,
             lengths: [S::ZERO; slot::COUNT],
@@ -272,6 +285,21 @@ impl<S: Scalar> Style<S> {
         };
         self.set_tag(i, u);
         self.lengths[i] = v;
+        self.derived = self.compute_derived();
+    }
+    /// The `derived` bits from the current tags.
+    fn compute_derived(&self) -> u8 {
+        let mut d = 0;
+        if (0..slot::COUNT).any(|i| matches!(self.tag(i), Unit::Percent | Unit::Stretch)) {
+            d |= derived::PERCENT;
+        }
+        if [slot::WIDTH, slot::HEIGHT, slot::MIN_WIDTH, slot::MIN_HEIGHT, slot::MAX_WIDTH, slot::MAX_HEIGHT]
+            .into_iter()
+            .any(|i| !matches!(self.tag(i), Unit::Auto | Unit::None))
+        {
+            d |= derived::SIZED;
+        }
+        d
     }
     /// Resolves the length in `slot` against `basis`; keywords resolve to none.
     #[inline]
@@ -312,8 +340,16 @@ impl<S: Scalar> Style<S> {
 
     /// True if any length is a percentage or `stretch`, which makes the node's size depend on
     /// its containing block's size.
+    #[inline]
     pub fn uses_percentages(&self) -> bool {
-        (0..slot::COUNT).any(|i| matches!(self.tag(i), Unit::Percent | Unit::Stretch))
+        self.derived & derived::PERCENT != 0
+    }
+
+    /// True if `width`, `height` or any min or max size is set (not `auto`/`none`), so that a
+    /// question for the node's content size can differ from one for its size.
+    #[inline]
+    pub(crate) fn has_own_sizing(&self) -> bool {
+        self.derived & derived::SIZED != 0
     }
 
     /// A 64-bit fingerprint over every layout-affecting field. The default

@@ -380,11 +380,7 @@ impl<'c, 'a, N: LayoutNode, M: Measure<N>> Pass<'c, 'a, N, M> {
         // A content-size question differs only for a node with its own size, min or max styles
         // (or an aspect ratio) on an axis the question leaves open.
         let s = p.style;
-        let sized = |l: Length<N::Scalar>| !matches!(l, Length::Auto | Length::None);
-        if input.content_size
-            && ([s.width(), s.height(), s.min_width(), s.min_height(), s.max_width(), s.max_height()].into_iter().any(sized)
-                || s.aspect_ratio().is_some())
-        {
+        if input.content_size && (s.has_own_sizing() || s.aspect_ratio().is_some()) {
             key.with_flag(ConstraintKey::CONTENT_SIZE)
         } else {
             key
