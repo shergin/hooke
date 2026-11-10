@@ -264,6 +264,7 @@ where
     M: Measure<N>,
 {
     let style = *node.parts().style;
+    let empty = node.parts().children.is_empty();
     let direction = resolve_direction(style.direction(), input.direction);
     let flow = Flow::new(&style, direction);
     let pb = content_inset(&style, input.parent_size.width, direction);
@@ -309,6 +310,8 @@ where
             None => {
                 let inner = match (tag_w, input.available.width) {
                     (Unit::Stretch, Available::Definite(a)) => (a - pb_sum.width).max(S::ZERO),
+                    // No items: the intrinsic inline size is zero under every constraint.
+                    _ if empty => S::ZERO,
                     (Unit::MinContent, _) | (_, Available::MinContent) => {
                         intrinsic_inline(pass, node, &style, flow, pb, IntrinsicMode::Min, inner_height, &input)?
                     }
@@ -324,7 +327,34 @@ where
             }
         },
     };
+    if empty {
+        // A container with no children: the algorithm over zero items, without the items.
+        return Ok((empty_size(&style, &input, pb_sum, pb_only, width_bb, height_bb), Opt::NONE));
+    }
     run(pass, node, &style, flow, pb, width_bb, height_bb, height_indefinite, &input)
+}
+
+/// The border-box size of a container with no children, as [`run`] computes it over zero items:
+/// the decided sizes stand, an undecided height is zero clamped by the style's inner bounds (which
+/// a content-size question ignores) plus the inset, clamped again in border-box terms, and both
+/// axes are floored at padding plus border. No items means no lines, so no baseline either.
+fn empty_size<S: Scalar>(
+    style: &Style<S>,
+    input: &Input<S>,
+    pb_sum: Size<S>,
+    pb_only: Size<S>,
+    width_bb: S,
+    height_bb: Opt<S>,
+) -> Size<S> {
+    let height = match height_bb.get() {
+        Some(h) => h,
+        None if input.content_size => pb_sum.height,
+        None => {
+            let b = inner_bounds(style, input, pb_only, pb_sum);
+            (S::ZERO.clamp_opt(b.min_inner.height, b.max_inner.height) + pb_sum.height).clamp_opt(b.min_bb.height, b.max_bb.height)
+        }
+    };
+    Size::new(width_bb.max(pb_only.width), height.max(pb_only.height))
 }
 
 /// The container's intrinsic inline size: §9.9.1 for a row container (the inline axis is the
