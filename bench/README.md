@@ -165,3 +165,26 @@ revision, not 0.15.1.
 - **Gate tolerance is absolute.** On very long rows f32 accumulation alone can exceed 0.01
   (`flex_expand_equal_weights` at 100k: 100,000 items of 0.1px); the gate then excludes the
   engine for that size and the report says so.
+
+## Baseline findings (2026-11-09, Apple M1 Pro)
+
+The full report of the first run is `notes/benchmarks/2026-11-09-stage2-full.md` (notes are not committed). In short:
+
+- **Equal output.** All four engines agree on 38 of 45 workload sizes. The gate found one hooke
+  bug before the run (the `space-between` fallback on an overflowing reversed line, fixed in
+  `59858e5` after checking Chromium), one hooke precision issue (100,000 equal `flex: 1 1 0` items
+  come out 0.10002 wide instead of 0.1: f32 error accumulating in the sequential distribution), two
+  Yoga semantics (flex base sizes clamped by min/max before distribution; a dropped `flex-start`
+  cross margin in wrapping containers) and one Taffy flex-base-size error on wrapping text in
+  unstretched items.
+- **Cold layout:** hooke is 1.10x Taffy's time (geometric mean over 44 benchmarks), 0.21x on
+  deep auto-sized nesting, up to 2.45x on flat wide trees; Cephal is 2x to 5x faster than hooke on
+  flat trees and 35x slower on a 10k-level chain; Yoga is quadratic on wrapping templates.
+- **One text edit:** hooke is 1.2x to 1.6x slower than Taffy and up to 170x slower than Cephal,
+  because its edit costs about 5 ns per node of the whole tree (ancestors re-run over all
+  children) plus the path copy of wide child lists. This is the first thing to optimise.
+- **Resize and candidates:** hooke is 3.8x faster than Taffy on a root resize, a forked
+  candidate costs a fifth of Taffy's deep clone, and eight candidates on eight threads cost 1.6x
+  one.
+- **Memory:** 460 to 850 bytes per node in hooke against Taffy's 960 to 1060; no engine
+  allocates on a warm unchanged pass.
