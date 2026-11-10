@@ -1,7 +1,7 @@
 //! Flex lines: breaking (§9.3), resolving flexible lengths (§9.7) and cross sizes (§9.4).
 
-use super::items::{ask, child_content_box, cross_constraint, resolve_auto_min, Item};
-use super::{count, transfer_bb, Ctx, F_AUTO_MIN, F_BASELINE, F_FROZEN, F_SCROLL, F_STRETCHED};
+use super::items::{ask, cross_constraint, resolve_auto_min, Item};
+use super::{count, transfer_bb, Ctx, F_AUTO_MIN, F_BASELINE, F_CONTENT_BOX, F_FROZEN, F_SCROLL, F_STRETCHED};
 use crate::geometry::{Axis, Size};
 use crate::measure::{Available, Measure};
 use crate::pass::{Cancelled, Pass};
@@ -238,7 +238,7 @@ where
         if single_line_definite && it.has(F_STRETCHED) && !needs_baseline {
             continue;
         }
-        let content_box = child_content_box(node, it.path(paths));
+        let content_box = it.has(F_CONTENT_BOX);
         let tmin = it.transferred_min(it.pb, content_box, cross);
         let tmax = it.transferred_max(it.pb, content_box, cross);
         let pb_cross = it.pb.get(cross);

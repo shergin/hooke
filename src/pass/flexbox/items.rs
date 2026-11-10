@@ -3,7 +3,7 @@
 
 use super::{
     is_absolute, padding_border, resolve_bb, resolve_direction, transfer, transfer_bb, Ctx, F_AUTO_MIN, F_BASELINE,
-    F_BASIS_DEFINITE, F_CONTENT_BASE, F_RELATIVE, F_SCROLL, F_STRETCHED, M_BOTTOM, M_LEFT, M_RIGHT, M_TOP,
+    F_BASIS_DEFINITE, F_CONTENT_BASE, F_CONTENT_BOX, F_RELATIVE, F_SCROLL, F_STRETCHED, M_BOTTOM, M_LEFT, M_RIGHT, M_TOP,
 };
 use crate::geometry::{Axis, Edges, Point, Size};
 use crate::measure::{Available, Measure};
@@ -284,6 +284,9 @@ fn make_item<S: Scalar>(cs: &Style<S>, ctx: &Ctx<S>, path_start: u32, path_len: 
     if relative {
         flags |= F_RELATIVE;
     }
+    if cs.box_sizing() == crate::style::BoxSizing::ContentBox {
+        flags |= F_CONTENT_BOX;
+    }
     Item {
         path_start,
         path_len,
@@ -314,20 +317,6 @@ fn make_item<S: Scalar>(cs: &Style<S>, ctx: &Ctx<S>, path_start: u32, path_len: 
         offset_cross: S::ZERO,
         inset,
     }
-}
-
-/// The child's `box-sizing` is needed for aspect-ratio transfers of min/max sizes; it is read
-/// back from the tree because the item does not store it.
-pub(crate) fn child_content_box<S, N>(node: &N, path: &[u32]) -> bool
-where
-    S: Scalar,
-    N: LayoutNode<Scalar = S>,
-{
-    let mut n = node;
-    for &i in path {
-        n = &n.parts().children[i as usize].node;
-    }
-    n.parts().style.box_sizing() == crate::style::BoxSizing::ContentBox
 }
 
 /// Asks the child behind `it` a sizing question. Children are always asked for their content
@@ -409,7 +398,7 @@ where
     let cross = ctx.cross();
     for item in items.iter_mut() {
         let it = *item;
-        let content_box = child_content_box(node, it.path(paths));
+        let content_box = it.has(F_CONTENT_BOX);
         let (cross_known, cross_available, cross_definite) = cross_constraint(ctx, &it, content_box);
         let main_tag = it.size_tag[main.index()];
         let main_stretch = ctx.inner.get(main).map(|v| (v - it.margin.sum(main)).max(S::ZERO));
@@ -558,7 +547,7 @@ where
     }
     let main = ctx.main();
     let cross = ctx.cross();
-    let content_box = child_content_box(node, it.path(paths));
+    let content_box = it.has(F_CONTENT_BOX);
     let (cross_known, cross_available, _) = cross_constraint(ctx, it, content_box);
     let mut known = Size::new(Opt::NONE, Opt::NONE);
     known.set(cross, cross_known);
@@ -628,7 +617,7 @@ where
             let measured = if !min_content && it.has(F_CONTENT_BASE) {
                 it.base
             } else {
-                let content_box = child_content_box(node, it.path(paths));
+                let content_box = it.has(F_CONTENT_BOX);
                 let (cross_known, cross_available, _) = cross_constraint(ctx, &it, content_box);
                 let mut known = Size::new(Opt::NONE, Opt::NONE);
                 known.set(cross, cross_known);
@@ -694,7 +683,7 @@ where
     let cross = ctx.cross();
     for item in items.iter_mut() {
         let it = *item;
-        let content_box = child_content_box(node, it.path(paths));
+        let content_box = it.has(F_CONTENT_BOX);
         let tmin = it.transferred_min(it.pb, content_box, cross);
         let tmax = it.transferred_max(it.pb, content_box, cross);
         let inner = match it.size.get(cross).get() {

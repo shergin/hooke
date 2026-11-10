@@ -47,6 +47,7 @@ const F_CONTENT_BASE: u16 = 1 << 4; // the flex base size is the item's max-cont
 const F_BASIS_DEFINITE: u16 = 1 << 5; // the flex base size came from a definite basis or main size
 const F_RELATIVE: u16 = 1 << 6; // `position: relative` with insets
 const F_AUTO_MIN: u16 = 1 << 7; // the §4.5 automatic minimum is deferred until the line shrinks
+const F_CONTENT_BOX: u16 = 1 << 8; // the child's `box-sizing` is `content-box`
 
 // Auto-margin bits, physical edges.
 const M_LEFT: u8 = 1;
