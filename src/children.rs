@@ -152,7 +152,10 @@ impl<N: LayoutNode> Children<N> {
     pub(crate) fn cow(&mut self) -> (&mut [Slot<N>], bool) {
         match &mut self.list {
             Some(l) => {
-                let cloned = Handle::get_mut(l).is_none();
+                // Unique iff the strong count is one: hosts hold no weak handles, and nothing
+                // else can raise the count while this handle is the only one. `make_mut` stays
+                // the arbiter; the count only feeds the statistics, without a second CAS.
+                let cloned = Handle::strong_count(l) != 1;
                 (Handle::make_mut(l), cloned)
             }
             None => (&mut [], false),

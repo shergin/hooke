@@ -425,18 +425,25 @@ impl<'c, 'a, N: LayoutNode, M: Measure<N>> Pass<'c, 'a, N, M> {
             self.cx.stats.memo_hits += 1;
             return Ok(hit);
         }
+        self.visit_unprobed(handle, input)
+    }
+
+    /// Steps 2 to 5 of the protocol, once a probe of `handle` has missed.
+    fn visit_unprobed(&mut self, handle: &mut Handle<N>, input: Input<N::Scalar>) -> Result<Answer<N::Scalar>, Cancelled> {
+        // The key is a function of the node's style and the input, both fixed for this visit.
+        let key = Self::node_key(&**handle, &input);
         // A container size query answered earlier in this pass (its slots may have evicted it).
         let is_container = (**handle).parts().state.kind() != NodeKind::Measured;
         if is_container && !input.is_final() {
             let addr = &**handle as *const N as usize;
-            if let Some(hit) = self.cx.scratch.size_table.get(addr, &Self::node_key(&**handle, &input)) {
+            if let Some(hit) = self.cx.scratch.size_table.get(addr, &key) {
                 self.cx.stats.pass_table_hits += 1;
                 return Ok(hit);
             }
         }
 
         // 2. make unique
-        if Handle::get_mut(handle).is_none() {
+        if Handle::strong_count(handle) != 1 {
             self.cx.stats.nodes_cloned += 1;
         }
         let node: &mut N = Handle::make_mut(handle);
@@ -460,7 +467,7 @@ impl<'c, 'a, N: LayoutNode, M: Measure<N>> Pass<'c, 'a, N, M> {
             (Size::ZERO, Opt::NONE)
         } else {
             match kind {
-                NodeKind::Measured => self.measure_leaf(node, input)?,
+                NodeKind::Measured => self.measure_leaf(node, input, key)?,
                 // A `contents` node reached directly (as a root) is laid out as a container.
                 NodeKind::Container | NodeKind::Contents => flexbox::layout_container(self, node, input)?,
             }
@@ -468,7 +475,6 @@ impl<'c, 'a, N: LayoutNode, M: Measure<N>> Pass<'c, 'a, N, M> {
 
         // 5. record. Only a final layout writes the node's size; size queries leave it alone,
         // so a memo hit always finds the stored size equal to the memoised one.
-        let key = Self::node_key(node, &input);
         if is_container && !input.is_final() {
             self.cx.scratch.size_table.insert(node as *const N as usize, key, (size, baseline));
         }
@@ -498,13 +504,19 @@ impl<'c, 'a, N: LayoutNode, M: Measure<N>> Pass<'c, 'a, N, M> {
             }
             Self::probe(n, &input)
         };
+        self.cx.stats.visited += 1;
         if let Some(hit) = probed {
-            self.cx.stats.visited += 1;
             self.cx.stats.memo_hits += 1;
             return Ok(hit);
         }
+        if let Some(flag) = self.cx.cancel
+            && flag.load(Ordering::Relaxed)
+        {
+            return Err(Cancelled);
+        }
+        // The probe above already missed: go straight to the steps that write.
         let slot = self.slot_mut(node, path);
-        self.visit(&mut slot.node, input)
+        self.visit_unprobed(&mut slot.node, input)
     }
 
     /// Mutable access to the slot at `path`, cloning shared lists and intermediate
@@ -516,7 +528,7 @@ impl<'c, 'a, N: LayoutNode, M: Measure<N>> Pass<'c, 'a, N, M> {
         }
         let mut slot: &'n mut Slot<N> = &mut list[path[0] as usize];
         for &i in &path[1..] {
-            if Handle::get_mut(&mut slot.node).is_none() {
+            if Handle::strong_count(&slot.node) != 1 {
                 self.cx.stats.nodes_cloned += 1;
             }
             let inner: &'n mut N = Handle::make_mut(&mut slot.node);
@@ -550,7 +562,7 @@ impl<'c, 'a, N: LayoutNode, M: Measure<N>> Pass<'c, 'a, N, M> {
 
     /// A measured leaf: style sizes first, then slots, the per-pass table, the shared cache,
     /// and only then the measurer.
-    fn measure_leaf(&mut self, node: &mut N, input: Input<N::Scalar>) -> Result<Answer<N::Scalar>, Cancelled> {
+    fn measure_leaf(&mut self, node: &mut N, input: Input<N::Scalar>, key: ConstraintKey) -> Result<Answer<N::Scalar>, Cancelled> {
         type S<N> = <N as LayoutNode>::Scalar;
         let style = *node.parts().style;
         let direction = match style.direction() {
@@ -623,7 +635,6 @@ impl<'c, 'a, N: LayoutNode, M: Measure<N>> Pass<'c, 'a, N, M> {
         }
 
         // Cached answers, in order of cost.
-        let key = Self::node_key(node, &input);
         let (content_id, slot_hit) = {
             let p = node.parts();
             (p.state.content_id(), p.state.slot_relaxed(&key))
