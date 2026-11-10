@@ -212,8 +212,7 @@ struct Bounds<S: Scalar> {
 /// `Px` and resolvable `Percent`, none otherwise. The unit tag comes back for keyword handling.
 #[inline]
 pub(crate) fn resolve_bb<S: Scalar>(style: &Style<S>, i: usize, basis: Opt<S>, pb_axis: S) -> (Opt<S>, Unit) {
-    let tag = style.tag(i);
-    let v = style.resolve(i, basis);
+    let (v, tag) = style.resolve_tagged(i, basis);
     let v = if style.box_sizing() == BoxSizing::ContentBox { v.map(|v| v + pb_axis) } else { v };
     (v, tag)
 }

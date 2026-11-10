@@ -113,6 +113,10 @@ mod derived {
     /// Some size, min or max property is not `auto`/`none`: a content-size question differs
     /// from an ordinary one for this node.
     pub const SIZED: u8 = 1 << 1;
+    /// Some margin is `auto`.
+    pub const AUTO_MARGIN: u8 = 1 << 2;
+    /// Some inset is not `auto`.
+    pub const INSET: u8 = 1 << 3;
 }
 
 /// Bit fields of `Style::bits`, as `(shift, width)`, packed back to back with widths taken
@@ -299,16 +303,29 @@ impl<S: Scalar> Style<S> {
         {
             d |= derived::SIZED;
         }
+        if (slot::MARGIN..slot::MARGIN + 4).any(|i| self.tag(i) == Unit::Auto) {
+            d |= derived::AUTO_MARGIN;
+        }
+        if (slot::INSET..slot::INSET + 4).any(|i| self.tag(i) != Unit::Auto) {
+            d |= derived::INSET;
+        }
         d
     }
     /// Resolves the length in `slot` against `basis`; keywords resolve to none.
     #[inline]
     pub(crate) fn resolve(&self, i: usize, basis: Opt<S>) -> Opt<S> {
-        match self.tag(i) {
+        self.resolve_tagged(i, basis).0
+    }
+    /// [`resolve`](Self::resolve) with the unit tag it read, for callers that need both.
+    #[inline]
+    pub(crate) fn resolve_tagged(&self, i: usize, basis: Opt<S>) -> (Opt<S>, Unit) {
+        let tag = self.tag(i);
+        let v = match tag {
             Unit::Px => Opt::some(self.lengths[i]),
             Unit::Percent => basis.map(|b| b * self.lengths[i]),
             _ => Opt::NONE,
-        }
+        };
+        (v, tag)
     }
     #[inline]
     fn edges(&self, base: usize) -> Edges<Length<S>> {
@@ -350,6 +367,16 @@ impl<S: Scalar> Style<S> {
     #[inline]
     pub(crate) fn has_own_sizing(&self) -> bool {
         self.derived & derived::SIZED != 0
+    }
+    /// True if any margin is `auto`.
+    #[inline]
+    pub(crate) fn has_auto_margin(&self) -> bool {
+        self.derived & derived::AUTO_MARGIN != 0
+    }
+    /// True if any inset is not `auto`.
+    #[inline]
+    pub(crate) fn has_inset(&self) -> bool {
+        self.derived & derived::INSET != 0
     }
 
     /// A 64-bit fingerprint over every layout-affecting field. The default

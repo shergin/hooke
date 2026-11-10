@@ -187,12 +187,13 @@ fn make_item<S: Scalar>(cs: &Style<S>, ctx: &Ctx<S>, path_start: u32, path_len: 
     let cross = flow.cross;
     let direction = resolve_direction(cs.direction(), flow.direction);
     let pb = padding_border(cs, ctx.inner.width).sums();
-    let margin_len = cs.margin();
     let margin = cs.resolve_edges(slot::MARGIN, ctx.inner.width);
     let mut auto_margin = 0u8;
-    for (l, bit) in [(margin_len.left, M_LEFT), (margin_len.right, M_RIGHT), (margin_len.top, M_TOP), (margin_len.bottom, M_BOTTOM)] {
-        if l.is_auto() {
-            auto_margin |= bit;
+    if cs.has_auto_margin() {
+        for (k, bit) in [M_LEFT, M_RIGHT, M_TOP, M_BOTTOM].into_iter().enumerate() {
+            if cs.tag(slot::MARGIN + k) == Unit::Auto {
+                auto_margin |= bit;
+            }
         }
     }
 
@@ -248,15 +249,14 @@ fn make_item<S: Scalar>(cs: &Style<S>, ctx: &Ctx<S>, path_start: u32, path_len: 
     let baseline = align == AlignItems::Baseline && main == Axis::Horizontal && !cross_auto_margin;
 
     let mut inset = Point::ZERO;
-    let mut relative = false;
-    if cs.position() == Position::Relative {
+    let relative = cs.position() == Position::Relative;
+    if relative && cs.has_inset() {
         // Insets resolve against the containing block; a percentage against an indefinite
         // height is zero.
-        let i = cs.inset();
-        let left = i.left.resolve(ctx.percent.width);
-        let right = i.right.resolve(ctx.percent.width);
-        let top = i.top.resolve(ctx.percent.height);
-        let bottom = i.bottom.resolve(ctx.percent.height);
+        let left = cs.resolve(slot::INSET, ctx.percent.width);
+        let right = cs.resolve(slot::INSET + 1, ctx.percent.width);
+        let top = cs.resolve(slot::INSET + 2, ctx.percent.height);
+        let bottom = cs.resolve(slot::INSET + 3, ctx.percent.height);
         inset.x = match (left.get(), right.get()) {
             (Some(l), Some(r)) => if direction == Direction::Rtl { -r } else { l },
             (Some(l), None) => l,
@@ -268,7 +268,6 @@ fn make_item<S: Scalar>(cs: &Style<S>, ctx: &Ctx<S>, path_start: u32, path_len: 
             (None, Some(b)) => -b,
             (None, None) => S::ZERO,
         };
-        relative = true;
     }
 
     let mut flags = 0u16;
