@@ -16,6 +16,8 @@
 //! - no `max-width` on an item of a row container whose width is derived from its content,
 //!   such as its content-based flex base size (css-flexbox-1 §9.9.3, css-sizing-3 §5.1;
 //!   [`Parent::intrinsic_row`], [`item_style`]);
+//! - no `justify-content: space-between` on a reversed container (css-flexbox-1 §8.2;
+//!   [`container_style`]);
 //! - text never measures narrower than its min-content width ([`measure_text_leaf`]);
 //! - items have `min-size: 0`, so the automatic minimum size (§4.5) is not compared
 //!   ([`item_style`]).
@@ -332,6 +334,20 @@ fn container_style(rng: &mut Rng, base: Style, percent_ok: bool) -> Style {
         .with_border(Edges::all(rng.below(3) as f32))
         .with_gap(Length::Px(rng.below(6) as f32), Length::Px(rng.below(6) as f32))
         .with_box_sizing(rng.pick(&[BoxSizing::ContentBox, BoxSizing::BorderBox]));
+    // `space-between` with negative free space falls back to `flex-start`, not to a safe start
+    // (css-flexbox-1 §8.2, "identical to flex-start"). In a reversed container `flex-start` is
+    // the end edge, so an overflowing line overflows past its main-start edge. hooke does
+    // this, and so does Chromium (checked on a 255px `row-reverse` with items 60, 171 and 10:
+    // x = 189, 18, 7). Taffy clamps the line to the start edge instead (192, 21, 10). This is
+    // one of cephal's documented divergences (`chrome_truth/flex_space_between_overflow_reversed`
+    // in its corpus, not converted because it uses `display: block`). Whether a line overflows
+    // is not known while generating, so a reversed container never gets `space-between`;
+    // `space-around` and `space-evenly` fall back to a safe `center` in both engines.
+    if matches!(s.flex_direction(), FlexDirection::RowReverse | FlexDirection::ColumnReverse)
+        && s.justify_content() == JustifyContent::SpaceBetween
+    {
+        s = s.with_justify_content(JustifyContent::SpaceAround);
+    }
     if rng.chance(40) {
         s = s.with_size(Length::Px(60.0 + rng.below(300) as f32), Length::Auto);
     }

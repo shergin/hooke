@@ -29,16 +29,17 @@ enum Distribute {
 type Keyword = (Distribute, Option<bool>);
 
 /// css-align's fallback alignment: with one subject or negative free space the distributed
-/// keywords fall back (`space-between` and `stretch` to `flex-start`, `space-around` and
-/// `space-evenly` to `center`), and those fallbacks are *safe*, so on overflow they become the
-/// writing-mode `start`. `start`/`end` are writing-mode relative; `start_is_flex_start` says
-/// whether that is the flex start on this axis.
+/// keywords fall back. `space-between` (and `stretch`) become plain `flex-start`, so an
+/// overflowing reversed line overflows past its main-start edge, as Chrome does (css-flexbox-1
+/// §8.2: "identical to flex-start"). `space-around` and `space-evenly` become *safe* `center`,
+/// which on overflow is the writing-mode `start`. `start`/`end` are writing-mode relative;
+/// `start_is_flex_start` says whether that is the flex start on this axis.
 fn resolve_distribution<S: Scalar>(kw: Keyword, free: S, start_is_flex_start: bool, n: usize) -> Distribute {
     let (mut k, start_end) = kw;
     let mut safe = false;
     if n <= 1 || free <= S::ZERO {
         (k, safe) = match k {
-            Distribute::SpaceBetween => (Distribute::FlexStart, true),
+            Distribute::SpaceBetween => (Distribute::FlexStart, false),
             Distribute::SpaceAround | Distribute::SpaceEvenly => (Distribute::Center, true),
             other => (other, false),
         };
