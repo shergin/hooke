@@ -11,7 +11,7 @@ keywords = ["flexbox", "layout", "concurrent", "rendering", "ui"]
 categories = ["gui", "rendering", "no-std"]
 documentation = "https://docs.rs/hooke"
 # The test suite needs the 2500 fixtures under `tests/fixtures`; neither is shipped.
-exclude = ["/tests", "/tools", "/.github", "/CLAUDE.md"]
+exclude = ["/tests", "/tools", "/.github"]
 
 [package.metadata.docs.rs]
 all-features = true
