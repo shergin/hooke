@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="hooke-dark.png">
+    <img src="hooke.png" width="160" height="160" alt="hooke logo: a rolled tape measure">
+  </picture>
+</p>
+
 # hooke
 
 [![crates.io](https://img.shields.io/crates/v/hooke.svg)](https://crates.io/crates/hooke)
