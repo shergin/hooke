@@ -18,9 +18,17 @@ cargo add hooke
 
 ## Why it exists
 
-A concurrent renderer never mutates the tree that is on screen. Every update forks the current
-tree into a candidate, lays the candidate out off the main thread, and commits it only if
-nothing else got there first. Several candidates can be in flight at once, at different
+Non-blocking rendering starts with layout. A UI stays responsive only if an update can be
+prepared while the current frame is still on screen, and abandoned the moment something more
+urgent arrives. That requires two versions of the tree to exist at once. If layout writes into
+the tree, they cannot, and every update waits its turn.
+
+It does not matter how fast your programming language is. A faster language shortens the wait.
+It does not remove it.
+
+So a concurrent renderer never mutates the tree that is on screen. Every update forks the
+current tree into a candidate, lays the candidate out off the main thread, and commits it only
+if nothing else got there first. Several candidates can be in flight at once, at different
 priorities, and most of them share most of their nodes.
 
 That asks something unusual of a layout engine: it has to work on a tree whose nodes belong to
