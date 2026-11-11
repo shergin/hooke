@@ -23,9 +23,6 @@ prepared while the current frame is still on screen, and abandoned the moment so
 urgent arrives. That requires two versions of the tree to exist at once. If layout writes into
 the tree, they cannot, and every update waits its turn.
 
-It does not matter how fast your programming language is. A faster language shortens the wait.
-It does not remove it.
-
 So a concurrent renderer never mutates the tree that is on screen. Every update forks the
 current tree into a candidate, lays the candidate out off the main thread, and commits it only
 if nothing else got there first. Several candidates can be in flight at once, at different
