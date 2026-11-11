@@ -74,18 +74,27 @@ impl<T> Size<T> {
     /// Applies `f` to both components.
     #[inline]
     pub fn map<U>(self, mut f: impl FnMut(T) -> U) -> Size<U> {
-        Size { width: f(self.width), height: f(self.height) }
+        Size {
+            width: f(self.width),
+            height: f(self.height),
+        }
     }
     /// Builds a size from a per-axis function.
     #[inline]
     pub fn from_fn(mut f: impl FnMut(Axis) -> T) -> Self {
-        Size { width: f(Axis::Horizontal), height: f(Axis::Vertical) }
+        Size {
+            width: f(Axis::Horizontal),
+            height: f(Axis::Vertical),
+        }
     }
 }
 
 impl<S: Scalar> Size<S> {
     /// A zero size.
-    pub const ZERO: Self = Size { width: S::ZERO, height: S::ZERO };
+    pub const ZERO: Self = Size {
+        width: S::ZERO,
+        height: S::ZERO,
+    };
 }
 
 impl<T> From<[T; 2]> for Size<T> {
@@ -139,7 +148,10 @@ impl<S: Scalar> Point<S> {
     #[inline]
     #[must_use]
     pub fn offset(self, by: Point<S>) -> Self {
-        Point { x: self.x + by.x, y: self.y + by.y }
+        Point {
+            x: self.x + by.x,
+            y: self.y + by.y,
+        }
     }
 }
 
@@ -161,7 +173,12 @@ impl<T: Copy> Rect<T> {
     /// Builds a rectangle from an origin and a size.
     #[inline]
     pub fn new(origin: Point<T>, size: Size<T>) -> Self {
-        Rect { x: origin.x, y: origin.y, width: size.width, height: size.height }
+        Rect {
+            x: origin.x,
+            y: origin.y,
+            width: size.width,
+            height: size.height,
+        }
     }
     /// The origin.
     #[inline]
@@ -171,7 +188,10 @@ impl<T: Copy> Rect<T> {
     /// The size.
     #[inline]
     pub fn size(&self) -> Size<T> {
-        Size { width: self.width, height: self.height }
+        Size {
+            width: self.width,
+            height: self.height,
+        }
     }
 }
 
@@ -193,12 +213,22 @@ impl<T: Copy> Edges<T> {
     /// The same value on all four edges.
     #[inline]
     pub const fn all(v: T) -> Self {
-        Edges { left: v, right: v, top: v, bottom: v }
+        Edges {
+            left: v,
+            right: v,
+            top: v,
+            bottom: v,
+        }
     }
     /// `horizontal` on left and right, `vertical` on top and bottom.
     #[inline]
     pub const fn symmetric(horizontal: T, vertical: T) -> Self {
-        Edges { left: horizontal, right: horizontal, top: vertical, bottom: vertical }
+        Edges {
+            left: horizontal,
+            right: horizontal,
+            top: vertical,
+            bottom: vertical,
+        }
     }
     /// The two edges that bound `axis`, start first.
     #[inline]
@@ -211,13 +241,23 @@ impl<T: Copy> Edges<T> {
     /// Applies `f` to every edge.
     #[inline]
     pub fn map<U>(self, mut f: impl FnMut(T) -> U) -> Edges<U> {
-        Edges { left: f(self.left), right: f(self.right), top: f(self.top), bottom: f(self.bottom) }
+        Edges {
+            left: f(self.left),
+            right: f(self.right),
+            top: f(self.top),
+            bottom: f(self.bottom),
+        }
     }
 }
 
 impl<S: Scalar> Edges<S> {
     /// Zero on every edge.
-    pub const ZERO: Self = Edges { left: S::ZERO, right: S::ZERO, top: S::ZERO, bottom: S::ZERO };
+    pub const ZERO: Self = Edges {
+        left: S::ZERO,
+        right: S::ZERO,
+        top: S::ZERO,
+        bottom: S::ZERO,
+    };
     /// `left + right` for the horizontal axis, `top + bottom` for the vertical.
     #[inline]
     pub fn sum(&self, axis: Axis) -> S {
@@ -227,7 +267,10 @@ impl<S: Scalar> Edges<S> {
     /// Both sums as a size.
     #[inline]
     pub fn sums(&self) -> Size<S> {
-        Size { width: self.left + self.right, height: self.top + self.bottom }
+        Size {
+            width: self.left + self.right,
+            height: self.top + self.bottom,
+        }
     }
 }
 

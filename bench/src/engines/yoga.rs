@@ -58,7 +58,13 @@ struct TextCtx {
     calls: Rc<Cell<u64>>,
 }
 
-extern "C" fn measure(node: NodeRef, width: f32, width_mode: MeasureMode, height: f32, height_mode: MeasureMode) -> Size {
+extern "C" fn measure(
+    node: NodeRef,
+    width: f32,
+    width_mode: MeasureMode,
+    height: f32,
+    height_mode: MeasureMode,
+) -> Size {
     let ctx = yoga::get_node_ref_context(&node)
         .and_then(|c| c.downcast_ref::<TextCtx>())
         .expect("measured node carries a TextCtx");
@@ -122,7 +128,12 @@ fn align(a: scene::Align) -> Align {
 }
 
 fn edges<T: Copy>(e: scene::Edges<T>) -> [(Edge, T); 4] {
-    [(Edge::Left, e.left), (Edge::Right, e.right), (Edge::Top, e.top), (Edge::Bottom, e.bottom)]
+    [
+        (Edge::Left, e.left),
+        (Edge::Right, e.right),
+        (Edge::Top, e.top),
+        (Edge::Bottom, e.bottom),
+    ]
 }
 
 /// Sets every scene property on `node`.
@@ -237,7 +248,10 @@ impl Engine for YogaEngine {
                 let mut node = Node::new_with_config(&mut config);
                 apply(&mut node, &sn.style);
                 if let Some(text) = &sn.text {
-                    node.set_context(Some(Context::new(TextCtx { text: text.clone(), calls: calls.clone() })));
+                    node.set_context(Some(Context::new(TextCtx {
+                        text: text.clone(),
+                        calls: calls.clone(),
+                    })));
                     node.set_measure_func(Some(measure));
                 }
                 node
@@ -292,8 +306,17 @@ impl Engine for YogaEngine {
             }
             let l = node.get_layout();
             let p = self.parents[i];
-            let (x, y) = if p == usize::MAX { (0.0, 0.0) } else { (out[p].x + l.left(), out[p].y + l.top()) };
-            out.push(Frame { x, y, width: l.width(), height: l.height() });
+            let (x, y) = if p == usize::MAX {
+                (0.0, 0.0)
+            } else {
+                (out[p].x + l.left(), out[p].y + l.top())
+            };
+            out.push(Frame {
+                x,
+                y,
+                width: l.width(),
+                height: l.height(),
+            });
         }
     }
 
@@ -347,7 +370,10 @@ mod tests {
         let mut e = YogaEngine::build(&text_column(WRAP_TEXT));
         e.layout();
         let f = frames_of(&e)[2];
-        assert!((f.width - 100.0).abs() <= TOL && (f.height - 20.0).abs() <= TOL, "{f:?}");
+        assert!(
+            (f.width - 100.0).abs() <= TOL && (f.height - 20.0).abs() <= TOL,
+            "{f:?}"
+        );
     }
 
     #[test]
@@ -358,7 +384,10 @@ mod tests {
         scene.nodes[0].style.padding = scene::Edges::all(Lp::Px(0.0));
         scene.nodes[0].style.column_gap = 0.0;
         for i in 1..=3 {
-            scene.nodes[i].style = scene::Style { grow: 1.0, ..scene::Style::default() };
+            scene.nodes[i].style = scene::Style {
+                grow: 1.0,
+                ..scene::Style::default()
+            };
         }
         let mut e = YogaEngine::build(&scene);
         e.layout();
@@ -402,7 +431,10 @@ mod tests {
         scene.nodes[1].style.width = Dim::Auto;
         let mut e = YogaEngine::build(&scene);
         e.layout();
-        scene.viewport = Viewport { width: Avail::Definite(90.0), height: Avail::MaxContent };
+        scene.viewport = Viewport {
+            width: Avail::Definite(90.0),
+            height: Avail::MaxContent,
+        };
         e.resize(scene.viewport);
         e.layout();
         let mut fresh = YogaEngine::build(&scene);
@@ -412,10 +444,17 @@ mod tests {
         let f = frames_of(&e);
         assert!((f[0].width - 90.0).abs() <= TOL, "{:?}", f[0]);
         // Under a wide viewport it shrinks to its max-content width.
-        scene.viewport = Viewport { width: Avail::Definite(800.0), height: Avail::Definite(600.0) };
+        scene.viewport = Viewport {
+            width: Avail::Definite(800.0),
+            height: Avail::Definite(600.0),
+        };
         e.resize(scene.viewport);
         e.layout();
         let f = frames_of(&e);
-        assert!((f[0].width - 120.0).abs() <= TOL && (f[0].height - 40.0).abs() <= TOL, "{:?}", f[0]);
+        assert!(
+            (f[0].width - 120.0).abs() <= TOL && (f[0].height - 40.0).abs() <= TOL,
+            "{:?}",
+            f[0]
+        );
     }
 }

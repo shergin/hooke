@@ -2,8 +2,8 @@
 #![allow(dead_code)]
 
 use hooke::{
-    Available, Children, Handle, LayoutCx, LayoutNode, LayoutState, Measure, MeasureCache, MeasureInput, Measured,
-    Opt, Parts, PartsMut, RootConstraints, Scratch, Size, Stats, Style,
+    Available, Children, Handle, LayoutCx, LayoutNode, LayoutState, Measure, MeasureCache, MeasureInput, Measured, Opt,
+    Parts, PartsMut, RootConstraints, Scratch, Size, Stats, Style,
 };
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -20,7 +20,10 @@ pub struct Props {
 }
 impl Props {
     pub fn new(style: Style) -> Handle<Props> {
-        Handle::new(Props { style, version: fresh_id() })
+        Handle::new(Props {
+            style,
+            version: fresh_id(),
+        })
     }
 }
 
@@ -28,13 +31,18 @@ impl Props {
 pub enum Kind {
     View,
     /// A text-like leaf with an intrinsic size; `chars` drives the width.
-    Text { intrinsic: Size<f32> },
+    Text {
+        intrinsic: Size<f32>,
+    },
     /// A measured leaf whose attachment children are laid out re-entrantly.
     Paragraph,
     /// A text leaf measured by Taffy's Ahem text model ([`measure_ahem`]), as in the Chrome
     /// fixtures: `text` with zero-width-space break opportunities, `vertical` for a vertical
     /// writing mode (Taffy's `TestNodeContext::ahem_text`).
-    AhemText { text: String, vertical: bool },
+    AhemText {
+        text: String,
+        vertical: bool,
+    },
 }
 
 /// The host node. `Clone` is shallow.
@@ -50,10 +58,18 @@ pub struct Node {
 impl LayoutNode for Node {
     type Scalar = f32;
     fn parts(&self) -> Parts<'_, Self> {
-        Parts { style: &self.props.style, state: &self.layout, children: &self.children }
+        Parts {
+            style: &self.props.style,
+            state: &self.layout,
+            children: &self.children,
+        }
     }
     fn parts_mut(&mut self) -> PartsMut<'_, Self> {
-        PartsMut { style: &self.props.style, state: &mut self.layout, children: &mut self.children }
+        PartsMut {
+            style: &self.props.style,
+            state: &mut self.layout,
+            children: &mut self.children,
+        }
     }
     fn style_key(&self) -> u64 {
         self.props.version
@@ -74,7 +90,9 @@ pub fn text(tag: u32, style: Style, width: f32, height: f32) -> Handle<Node> {
     Handle::new(Node {
         tag,
         props: Props::new(style),
-        kind: Kind::Text { intrinsic: Size::new(width, height) },
+        kind: Kind::Text {
+            intrinsic: Size::new(width, height),
+        },
         children: Children::empty(),
         layout: LayoutState::measured(fresh_id()),
     })
@@ -119,7 +137,11 @@ pub fn measure_text(intrinsic: Size<f32>, input: MeasureInput<f32>) -> Measured<
         Some(h) => h,
         None => intrinsic.height,
     };
-    Measured { size: Size::new(width, height), first_baseline: Opt::some(height * 0.8), last_baseline: Opt::some(height * 0.8) }
+    Measured {
+        size: Size::new(width, height),
+        first_baseline: Opt::some(height * 0.8),
+        last_baseline: Opt::some(height * 0.8),
+    }
 }
 
 impl Measure<Node> for Shaper {
@@ -144,7 +166,11 @@ impl Measure<Node> for Shaper {
                     node.children.make_mut_untracked()[i].offset = hooke::Point::new(x, 0.0);
                     x += size.width;
                 }
-                Measured { size: Size::new(x, 12.0), first_baseline: Opt::some(10.0), last_baseline: Opt::some(10.0) }
+                Measured {
+                    size: Size::new(x, 12.0),
+                    first_baseline: Opt::some(10.0),
+                    last_baseline: Opt::some(10.0),
+                }
             }
             Kind::AhemText { text, vertical } => measure_ahem(&text, vertical, input),
             Kind::View => Measured::default(),
@@ -157,7 +183,10 @@ pub fn ahem_text(tag: u32, style: Style, text: &str, vertical: bool) -> Handle<N
     Handle::new(Node {
         tag,
         props: Props::new(style),
-        kind: Kind::AhemText { text: text.to_string(), vertical },
+        kind: Kind::AhemText {
+            text: text.to_string(),
+            vertical,
+        },
         children: Children::empty(),
         layout: LayoutState::measured(fresh_id()),
     })
@@ -215,21 +244,37 @@ pub fn measure_ahem(text: &str, vertical: bool, input: MeasureInput<f32>) -> Mea
             }
             (line_count as f32) * H_HEIGHT
         });
-        if vertical { Size::new(block_size, inline_size) } else { Size::new(inline_size, block_size) }
+        if vertical {
+            Size::new(block_size, inline_size)
+        } else {
+            Size::new(inline_size, block_size)
+        }
     };
 
-    Measured::size(known.width.get().unwrap_or(computed.width), known.height.get().unwrap_or(computed.height))
+    Measured::size(
+        known.width.get().unwrap_or(computed.width),
+        known.height.get().unwrap_or(computed.height),
+    )
 }
 
-pub fn run(root: &mut Handle<Node>, viewport: Size<f32>, cache: Option<&dyn MeasureCache<f32>>) -> (Size<f32>, Stats, u32) {
+pub fn run(
+    root: &mut Handle<Node>,
+    viewport: Size<f32>,
+    cache: Option<&dyn MeasureCache<f32>>,
+) -> (Size<f32>, Stats, u32) {
     let mut scratch = Scratch::new();
     let mut cx = LayoutCx::new(&mut scratch);
     if let Some(c) = cache {
         cx = cx.with_cache(c);
     }
     let mut shaper = Shaper { calls: 0 };
-    let size = hooke::layout(root, RootConstraints::viewport(viewport.width, viewport.height), &mut cx, &mut shaper)
-        .expect("not cancelled");
+    let size = hooke::layout(
+        root,
+        RootConstraints::viewport(viewport.width, viewport.height),
+        &mut cx,
+        &mut shaper,
+    )
+    .expect("not cancelled");
     (size, cx.stats, shaper.calls)
 }
 
@@ -285,9 +330,28 @@ pub fn dump_tree(node: &Handle<Node>, depth: usize) {
     let m = s.margin();
     eprintln!(
         "{}#{} {kind} dir={:?} just={:?} ai={:?} as={:?} grow={} shrink={} size=({},{}) max=({},{}) margin=[{} {} {} {}] pad={} border={} gap=({},{}) bs={:?} -> {:?}",
-        "  ".repeat(depth), node.tag, s.flex_direction(), s.justify_content(), s.align_items(), s.align_self(), s.flex_grow(), s.flex_shrink(),
-        px(s.width()), px(s.height()), px(s.max_width()), px(s.max_height()), px(m.left), px(m.right), px(m.top), px(m.bottom),
-        px(s.padding().left), s.border().left, px(s.row_gap()), px(s.column_gap()), s.box_sizing(), node.layout.size()
+        "  ".repeat(depth),
+        node.tag,
+        s.flex_direction(),
+        s.justify_content(),
+        s.align_items(),
+        s.align_self(),
+        s.flex_grow(),
+        s.flex_shrink(),
+        px(s.width()),
+        px(s.height()),
+        px(s.max_width()),
+        px(s.max_height()),
+        px(m.left),
+        px(m.right),
+        px(m.top),
+        px(m.bottom),
+        px(s.padding().left),
+        s.border().left,
+        px(s.row_gap()),
+        px(s.column_gap()),
+        s.box_sizing(),
+        node.layout.size()
     );
     for slot in &node.children {
         eprint!("{}  @({}, {}) ", "  ".repeat(depth), slot.offset.x, slot.offset.y);

@@ -25,7 +25,12 @@ pub fn snap<S: Scalar>(parent_origin: Point<S>, offset: Point<S>, size: Size<S>,
     let y0 = parent_origin.y + offset.y;
     let (sx0, sy0) = (round(x0), round(y0));
     let (sx1, sy1) = (round(x0 + size.width), round(y0 + size.height));
-    Rect { x: sx0, y: sy0, width: sx1 - sx0, height: sy1 - sy0 }
+    Rect {
+        x: sx0,
+        y: sy0,
+        width: sx1 - sx0,
+        height: sy1 - sy0,
+    }
 }
 
 #[cfg(test)]

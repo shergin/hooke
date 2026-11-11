@@ -75,7 +75,11 @@ impl<S: Scalar> Measured<S> {
     /// A size with no baselines.
     #[inline]
     pub fn size(width: S, height: S) -> Self {
-        Measured { size: Size::new(width, height), first_baseline: Opt::NONE, last_baseline: Opt::NONE }
+        Measured {
+            size: Size::new(width, height),
+            first_baseline: Opt::NONE,
+            last_baseline: Opt::NONE,
+        }
     }
 }
 
@@ -111,7 +115,12 @@ where
     F: FnMut(&mut N, MeasureInput<N::Scalar>, &mut LayoutCx<'_, N::Scalar>) -> Measured<N::Scalar>,
 {
     #[inline]
-    fn measure(&mut self, node: &mut N, input: MeasureInput<N::Scalar>, cx: &mut LayoutCx<'_, N::Scalar>) -> Measured<N::Scalar> {
+    fn measure(
+        &mut self,
+        node: &mut N,
+        input: MeasureInput<N::Scalar>,
+        cx: &mut LayoutCx<'_, N::Scalar>,
+    ) -> Measured<N::Scalar> {
         self(node, input, cx)
     }
 }
@@ -199,6 +208,9 @@ impl<S: Scalar> MeasureCache<S> for SharedMeasureCache<S> {
 #[cfg(feature = "std")]
 impl<S: Scalar> core::fmt::Debug for SharedMeasureCache<S> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.debug_struct("SharedMeasureCache").field("len", &self.len()).field("hits", &self.hits()).finish()
+        f.debug_struct("SharedMeasureCache")
+            .field("len", &self.len())
+            .field("hits", &self.hits())
+            .finish()
     }
 }

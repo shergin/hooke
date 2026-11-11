@@ -17,14 +17,14 @@
 mod flexbox;
 mod table;
 
+use crate::Handle;
 use crate::children::Slot;
 use crate::geometry::{Axis, Point, Size};
 use crate::measure::{Available, Measure, MeasureCache, MeasureInput, Measured};
 use crate::scalar::{Opt, Scalar};
 use crate::state::{ConstraintKey, NodeKind};
-use crate::style::{slot, BoxSizing, Direction, Display, Length};
+use crate::style::{BoxSizing, Direction, Display, Length, slot};
 use crate::tree::LayoutNode;
-use crate::Handle;
 use alloc::vec::Vec;
 use core::fmt;
 use core::marker::PhantomData;
@@ -54,7 +54,10 @@ struct Pool<T> {
 
 impl<T> Default for Pool<T> {
     fn default() -> Self {
-        Pool { free: Vec::new(), high: 0 }
+        Pool {
+            free: Vec::new(),
+            high: 0,
+        }
     }
 }
 
@@ -115,7 +118,9 @@ impl<S: Scalar> Scratch<S> {
 
 impl<S: Scalar> fmt::Debug for Scratch<S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Scratch").field("pooled_item_vecs", &self.items.free.len()).finish()
+        f.debug_struct("Scratch")
+            .field("pooled_item_vecs", &self.items.free.len())
+            .finish()
     }
 }
 
@@ -154,7 +159,14 @@ pub struct LayoutCx<'a, S: Scalar> {
 impl<'a, S: Scalar> LayoutCx<'a, S> {
     /// A context over a reusable scratch, with no shared cache and no cancellation.
     pub fn new(scratch: &'a mut Scratch<S>) -> Self {
-        LayoutCx { scratch, cache: None, epoch: 0, cancel: None, depth: 0, stats: Stats::default() }
+        LayoutCx {
+            scratch,
+            cache: None,
+            epoch: 0,
+            cancel: None,
+            depth: 0,
+            stats: Stats::default(),
+        }
     }
     /// Uses `cache` for measured leaves with a non-zero content id.
     #[must_use]
@@ -178,7 +190,10 @@ impl<'a, S: Scalar> LayoutCx<'a, S> {
 
 impl<S: Scalar> fmt::Debug for LayoutCx<'_, S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("LayoutCx").field("epoch", &self.epoch).field("stats", &self.stats).finish()
+        f.debug_struct("LayoutCx")
+            .field("epoch", &self.epoch)
+            .field("stats", &self.stats)
+            .finish()
     }
 }
 
@@ -259,9 +274,18 @@ pub fn layout<N: LayoutNode, M: Measure<N>>(
     let parent_size = constraints.available.map(|a| a.definite());
     // The root's own margins come out of the space available to it, as a parent would do.
     let margin = root.parts().style.resolve_edges(slot::MARGIN, parent_size.width).sums();
-    let available = Size::new(constraints.available.width.shrink(margin.width), constraints.available.height.shrink(margin.height));
+    let available = Size::new(
+        constraints.available.width.shrink(margin.width),
+        constraints.available.height.shrink(margin.height),
+    );
     let input = Input::new(constraints.known, available, parent_size, direction).finalize();
-    let result = Pass { cx, measure, _n: PhantomData }.visit(root, input).map(|(size, _)| size);
+    let result = Pass {
+        cx,
+        measure,
+        _n: PhantomData,
+    }
+    .visit(root, input)
+    .map(|(size, _)| size);
     cx.depth -= 1;
     result
 }
@@ -309,8 +333,11 @@ impl<S: Scalar> Input<S> {
             flags |= ConstraintKey::RTL;
         }
         flags |= ConstraintKey::COMPUTE_SIZE;
-        let key =
-            ConstraintKey::new([w, h], [parent_size.width.key_bits(), parent_size.height.key_bits()], flags);
+        let key = ConstraintKey::new(
+            [w, h],
+            [parent_size.width.key_bits(), parent_size.height.key_bits()],
+            flags,
+        );
         Input {
             key,
             known,
@@ -367,7 +394,11 @@ impl<'c, 'a, N: LayoutNode, M: Measure<N>> Pass<'c, 'a, N, M> {
     fn node_key(node: &N, input: &Input<N::Scalar>) -> ConstraintKey {
         let p = node.parts();
         let measured = p.state.kind() == NodeKind::Measured;
-        let mut key = if p.style.uses_percentages() { input.key } else { input.key.without_parent() };
+        let mut key = if p.style.uses_percentages() {
+            input.key
+        } else {
+            input.key.without_parent()
+        };
         // Definiteness only changes how a container resolves its children's percentages.
         if !measured {
             if input.indefinite.width {
@@ -412,7 +443,11 @@ impl<'c, 'a, N: LayoutNode, M: Measure<N>> Pass<'c, 'a, N, M> {
         }
     }
 
-    pub(crate) fn visit(&mut self, handle: &mut Handle<N>, input: Input<N::Scalar>) -> Result<Answer<N::Scalar>, Cancelled> {
+    pub(crate) fn visit(
+        &mut self,
+        handle: &mut Handle<N>,
+        input: Input<N::Scalar>,
+    ) -> Result<Answer<N::Scalar>, Cancelled> {
         if let Some(flag) = self.cx.cancel
             && flag.load(Ordering::Relaxed)
         {
@@ -429,7 +464,11 @@ impl<'c, 'a, N: LayoutNode, M: Measure<N>> Pass<'c, 'a, N, M> {
     }
 
     /// Steps 2 to 5 of the protocol, once a probe of `handle` has missed.
-    fn visit_unprobed(&mut self, handle: &mut Handle<N>, input: Input<N::Scalar>) -> Result<Answer<N::Scalar>, Cancelled> {
+    fn visit_unprobed(
+        &mut self,
+        handle: &mut Handle<N>,
+        input: Input<N::Scalar>,
+    ) -> Result<Answer<N::Scalar>, Cancelled> {
         // The key is a function of the node's style and the input, both fixed for this visit.
         let key = Self::node_key(&**handle, &input);
         // A container size query answered earlier in this pass (its slots may have evicted it).
@@ -476,7 +515,10 @@ impl<'c, 'a, N: LayoutNode, M: Measure<N>> Pass<'c, 'a, N, M> {
         // 5. record. Only a final layout writes the node's size; size queries leave it alone,
         // so a memo hit always finds the stored size equal to the memoised one.
         if is_container && !input.is_final() {
-            self.cx.scratch.size_table.insert(node as *const N as usize, key, (size, baseline));
+            self.cx
+                .scratch
+                .size_table
+                .insert(node as *const N as usize, key, (size, baseline));
         }
         let p = node.parts_mut();
         if input.is_final() {
@@ -562,7 +604,12 @@ impl<'c, 'a, N: LayoutNode, M: Measure<N>> Pass<'c, 'a, N, M> {
 
     /// A measured leaf: style sizes first, then slots, the per-pass table, the shared cache,
     /// and only then the measurer.
-    fn measure_leaf(&mut self, node: &mut N, input: Input<N::Scalar>, key: ConstraintKey) -> Result<Answer<N::Scalar>, Cancelled> {
+    fn measure_leaf(
+        &mut self,
+        node: &mut N,
+        input: Input<N::Scalar>,
+        key: ConstraintKey,
+    ) -> Result<Answer<N::Scalar>, Cancelled> {
         type S<N> = <N as LayoutNode>::Scalar;
         let style = *node.parts().style;
         let direction = match style.direction() {
@@ -580,7 +627,10 @@ impl<'c, 'a, N: LayoutNode, M: Measure<N>> Pass<'c, 'a, N, M> {
             }
             let (_, min_slot, max_slot) = slot::sizing(axis);
             let parent = input.parent_size.get(axis);
-            (style.resolve(min_slot, parent).map(|v| to_bb(axis, v)), style.resolve(max_slot, parent).map(|v| to_bb(axis, v)))
+            (
+                style.resolve(min_slot, parent).map(|v| to_bb(axis, v)),
+                style.resolve(max_slot, parent).map(|v| to_bb(axis, v)),
+            )
         };
 
         // Border-box sizes decided before measuring: imposed by the parent, or set in the style
@@ -609,19 +659,35 @@ impl<'c, 'a, N: LayoutNode, M: Measure<N>> Pass<'c, 'a, N, M> {
                     let margins = style.resolve_edges(slot::MARGIN, input.parent_size.width).sum(axis);
                     parent.map(|p| (p - margins).max(S::<N>::ZERO).clamp_opt(min, max))
                 }
-                _ => style.resolve(size_slot, parent).map(|v| to_bb(axis, v)).map(|v| v.clamp_opt(min, max)),
+                _ => style
+                    .resolve(size_slot, parent)
+                    .map(|v| to_bb(axis, v))
+                    .map(|v| v.clamp_opt(min, max)),
             }
         });
-        let ratio = if input.content_size { Opt::NONE } else { style.aspect_ratio() };
+        let ratio = if input.content_size {
+            Opt::NONE
+        } else {
+            style.aspect_ratio()
+        };
         if let Some(r) = ratio.get() {
             let transfer = |from: Axis, v: S<N>| {
-                let inner = if content_box { (v - pb_sum.get(from)).max(S::<N>::ZERO) } else { v };
+                let inner = if content_box {
+                    (v - pb_sum.get(from)).max(S::<N>::ZERO)
+                } else {
+                    v
+                };
                 let other = match from {
                     Axis::Horizontal => inner / r,
                     Axis::Vertical => inner * r,
                 };
                 let (min, max) = bounds(from.cross());
-                (if content_box { other + pb_sum.get(from.cross()) } else { other }).clamp_opt(min, max)
+                (if content_box {
+                    other + pb_sum.get(from.cross())
+                } else {
+                    other
+                })
+                .clamp_opt(min, max)
             };
             match (decided.width.get(), decided.height.get()) {
                 (Some(w), None) => decided.height = Opt::some(transfer(Axis::Horizontal, w)),
@@ -698,8 +764,16 @@ impl<'c, 'a, N: LayoutNode, M: Measure<N>> Pass<'c, 'a, N, M> {
         });
         // A ratio-dependent height is at least the transferred width.
         if let (Some(r), None) = (ratio.get(), decided.height.get()) {
-            let inner_w = if content_box { (size.width - pb_sum.width).max(S::<N>::ZERO) } else { size.width };
-            let via = if content_box { inner_w / r + pb_sum.height } else { inner_w / r };
+            let inner_w = if content_box {
+                (size.width - pb_sum.width).max(S::<N>::ZERO)
+            } else {
+                size.width
+            };
+            let via = if content_box {
+                inner_w / r + pb_sum.height
+            } else {
+                inner_w / r
+            };
             let (min, max) = bounds(Axis::Vertical);
             size.height = size.height.max(via.clamp_opt(min, max));
         }

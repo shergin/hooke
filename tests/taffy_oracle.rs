@@ -52,10 +52,20 @@ fn to_taffy_lp(l: Length<f32>) -> taffy::style::LengthPercentage {
     }
 }
 fn edges_lpa(e: Edges<Length<f32>>) -> taffy::geometry::Rect<taffy::style::LengthPercentageAuto> {
-    taffy::geometry::Rect { left: to_taffy_lpa(e.left), right: to_taffy_lpa(e.right), top: to_taffy_lpa(e.top), bottom: to_taffy_lpa(e.bottom) }
+    taffy::geometry::Rect {
+        left: to_taffy_lpa(e.left),
+        right: to_taffy_lpa(e.right),
+        top: to_taffy_lpa(e.top),
+        bottom: to_taffy_lpa(e.bottom),
+    }
 }
 fn edges_lp(e: Edges<Length<f32>>) -> taffy::geometry::Rect<taffy::style::LengthPercentage> {
-    taffy::geometry::Rect { left: to_taffy_lp(e.left), right: to_taffy_lp(e.right), top: to_taffy_lp(e.top), bottom: to_taffy_lp(e.bottom) }
+    taffy::geometry::Rect {
+        left: to_taffy_lp(e.left),
+        right: to_taffy_lp(e.right),
+        top: to_taffy_lp(e.top),
+        bottom: to_taffy_lp(e.bottom),
+    }
 }
 
 fn to_taffy_style(s: &Style) -> taffy::style::Style {
@@ -82,9 +92,18 @@ fn to_taffy_style(s: &Style) -> taffy::style::Style {
         flex_grow: s.flex_grow(),
         flex_shrink: s.flex_shrink(),
         flex_basis: to_taffy_length(s.flex_basis()),
-        size: taffy::geometry::Size { width: to_taffy_length(s.width()), height: to_taffy_length(s.height()) },
-        min_size: taffy::geometry::Size { width: to_taffy_lpa(s.min_width()), height: to_taffy_lpa(s.min_height()) },
-        max_size: taffy::geometry::Size { width: to_taffy_lpa(s.max_width()), height: to_taffy_lpa(s.max_height()) },
+        size: taffy::geometry::Size {
+            width: to_taffy_length(s.width()),
+            height: to_taffy_length(s.height()),
+        },
+        min_size: taffy::geometry::Size {
+            width: to_taffy_lpa(s.min_width()),
+            height: to_taffy_lpa(s.min_height()),
+        },
+        max_size: taffy::geometry::Size {
+            width: to_taffy_lpa(s.max_width()),
+            height: to_taffy_lpa(s.max_height()),
+        },
         margin: edges_lpa(s.margin()),
         padding: edges_lp(s.padding()),
         border: taffy::geometry::Rect {
@@ -93,10 +112,15 @@ fn to_taffy_style(s: &Style) -> taffy::style::Style {
             top: t::LengthPercentage::length(border.top),
             bottom: t::LengthPercentage::length(border.bottom),
         },
-        gap: taffy::geometry::Size { width: to_taffy_lp(s.column_gap()), height: to_taffy_lp(s.row_gap()) },
+        gap: taffy::geometry::Size {
+            width: to_taffy_lp(s.column_gap()),
+            height: to_taffy_lp(s.row_gap()),
+        },
         justify_content: match s.justify_content() {
             JustifyContent::Normal => t::JustifyContent::NORMAL,
-            JustifyContent::FlexStart | JustifyContent::Start | JustifyContent::Stretch => t::JustifyContent::FLEX_START,
+            JustifyContent::FlexStart | JustifyContent::Start | JustifyContent::Stretch => {
+                t::JustifyContent::FLEX_START
+            }
             JustifyContent::FlexEnd | JustifyContent::End => t::JustifyContent::FLEX_END,
             JustifyContent::Center => t::JustifyContent::CENTER,
             JustifyContent::SpaceBetween => t::JustifyContent::SPACE_BETWEEN,
@@ -156,13 +180,22 @@ fn measure_text_leaf(intrinsic: Size<f32>, input: hooke::MeasureInput<f32>) -> h
         },
     };
     let height = input.known.height.get().unwrap_or(intrinsic.height);
-    hooke::Measured { size: Size::new(width, height), first_baseline: hooke::Opt::some(height * 0.8), last_baseline: hooke::Opt::some(height * 0.8) }
+    hooke::Measured {
+        size: Size::new(width, height),
+        first_baseline: hooke::Opt::some(height * 0.8),
+        last_baseline: hooke::Opt::some(height * 0.8),
+    }
 }
 
 /// hooke's measure function for the oracle: text leaves through [`measure_text_leaf`].
 struct TextMeasure;
 impl hooke::Measure<Node> for TextMeasure {
-    fn measure(&mut self, node: &mut Node, input: hooke::MeasureInput<f32>, _cx: &mut hooke::LayoutCx<'_, f32>) -> hooke::Measured<f32> {
+    fn measure(
+        &mut self,
+        node: &mut Node,
+        input: hooke::MeasureInput<f32>,
+        _cx: &mut hooke::LayoutCx<'_, f32>,
+    ) -> hooke::Measured<f32> {
         match node.kind {
             Kind::Text { intrinsic } => measure_text_leaf(intrinsic, input),
             _ => unreachable!("the oracle builds only views and text leaves"),
@@ -191,7 +224,13 @@ fn try_compare(root: &mut Handle<Node>, seed: u64, dump: bool) -> Result<(), Str
     let ours = {
         let mut scratch = hooke::Scratch::new();
         let mut cx = hooke::LayoutCx::new(&mut scratch);
-        hooke::layout(root, hooke::RootConstraints::viewport(800.0, 600.0), &mut cx, &mut TextMeasure).expect("not cancelled")
+        hooke::layout(
+            root,
+            hooke::RootConstraints::viewport(800.0, 600.0),
+            &mut cx,
+            &mut TextMeasure,
+        )
+        .expect("not cancelled")
     };
     let our_frames: Vec<[f32; 4]> = frames(root).into_iter().map(|(_, f)| f).collect();
 
@@ -200,18 +239,32 @@ fn try_compare(root: &mut Handle<Node>, seed: u64, dump: bool) -> Result<(), Str
     let taffy_root = mirror(root, &mut tree);
     tree.compute_layout_with_measure(
         taffy_root,
-        taffy::geometry::Size { width: AvailableSpace::Definite(800.0), height: AvailableSpace::Definite(600.0) },
+        taffy::geometry::Size {
+            width: AvailableSpace::Definite(800.0),
+            height: AvailableSpace::Definite(600.0),
+        },
         |input, _id, ctx, style| {
             // Taffy hands the whole leaf to this closure, so go through `compute_leaf_layout`:
             // the leaf's own size, min/max, padding and border then apply as they do in ours
             // (returning the measured size directly ignored e.g. a leaf root's max-width).
             let intrinsic = *ctx.expect("leaves carry their intrinsic size");
-            taffy::compute_leaf_layout(input, style, |_, _| 0.0, |known, available| {
-                let known = Size::new(known.width.into(), known.height.into());
-                let available = Size::new(from_taffy_available(available.width), from_taffy_available(available.height));
-                let m = measure_text_leaf(intrinsic, hooke::MeasureInput { known, available });
-                taffy::geometry::Size { width: m.size.width, height: m.size.height }
-            })
+            taffy::compute_leaf_layout(
+                input,
+                style,
+                |_, _| 0.0,
+                |known, available| {
+                    let known = Size::new(known.width.into(), known.height.into());
+                    let available = Size::new(
+                        from_taffy_available(available.width),
+                        from_taffy_available(available.height),
+                    );
+                    let m = measure_text_leaf(intrinsic, hooke::MeasureInput { known, available });
+                    taffy::geometry::Size {
+                        width: m.size.width,
+                        height: m.size.height,
+                    }
+                },
+            )
         },
     )
     .unwrap();
@@ -226,7 +279,10 @@ fn try_compare(root: &mut Handle<Node>, seed: u64, dump: bool) -> Result<(), Str
             dump_tree(root, 0);
             eprintln!("taffy frames: {theirs:?}");
         }
-        return Err(format!("seed {seed}: root size ours {ours:?} taffy {:?}", root_layout.size));
+        return Err(format!(
+            "seed {seed}: root size ours {ours:?} taffy {:?}",
+            root_layout.size
+        ));
     }
     assert_eq!(our_frames.len(), theirs.len());
     for (i, (a, b)) in our_frames.iter().zip(theirs.iter()).enumerate() {
@@ -292,7 +348,12 @@ fn item_style(rng: &mut Rng, parent: Option<Parent>) -> Style {
             bottom: Length::Px(rng.below(5) as f32),
         });
     if rng.chance(30) {
-        s = s.with_align_self(Some(rng.pick(&[AlignItems::FlexStart, AlignItems::Center, AlignItems::FlexEnd, AlignItems::Stretch])));
+        s = s.with_align_self(Some(rng.pick(&[
+            AlignItems::FlexStart,
+            AlignItems::Center,
+            AlignItems::FlexEnd,
+            AlignItems::Stretch,
+        ])));
     }
     // An item of a row container whose width is derived from its content (its content-based
     // flex base size, or its intrinsic size inside an ancestor's; see
@@ -320,7 +381,12 @@ fn item_style(rng: &mut Rng, parent: Option<Parent>) -> Style {
 
 fn container_style(rng: &mut Rng, base: Style, percent_ok: bool) -> Style {
     let mut s = base
-        .with_flex_direction(rng.pick(&[FlexDirection::Row, FlexDirection::Column, FlexDirection::RowReverse, FlexDirection::ColumnReverse]))
+        .with_flex_direction(rng.pick(&[
+            FlexDirection::Row,
+            FlexDirection::Column,
+            FlexDirection::RowReverse,
+            FlexDirection::ColumnReverse,
+        ]))
         .with_justify_content(rng.pick(&[
             JustifyContent::FlexStart,
             JustifyContent::FlexEnd,
@@ -329,7 +395,12 @@ fn container_style(rng: &mut Rng, base: Style, percent_ok: bool) -> Style {
             JustifyContent::SpaceAround,
             JustifyContent::SpaceEvenly,
         ]))
-        .with_align_items(rng.pick(&[AlignItems::Stretch, AlignItems::FlexStart, AlignItems::Center, AlignItems::FlexEnd]))
+        .with_align_items(rng.pick(&[
+            AlignItems::Stretch,
+            AlignItems::FlexStart,
+            AlignItems::Center,
+            AlignItems::FlexEnd,
+        ]))
         .with_padding(Edges::all(Length::Px(rng.below(8) as f32)))
         .with_border(Edges::all(rng.below(3) as f32))
         .with_gap(Length::Px(rng.below(6) as f32), Length::Px(rng.below(6) as f32))
@@ -343,8 +414,10 @@ fn container_style(rng: &mut Rng, base: Style, percent_ok: bool) -> Style {
     // in its corpus, not converted because it uses `display: block`). Whether a line overflows
     // is not known while generating, so a reversed container never gets `space-between`;
     // `space-around` and `space-evenly` fall back to a safe `center` in both engines.
-    if matches!(s.flex_direction(), FlexDirection::RowReverse | FlexDirection::ColumnReverse)
-        && s.justify_content() == JustifyContent::SpaceBetween
+    if matches!(
+        s.flex_direction(),
+        FlexDirection::RowReverse | FlexDirection::ColumnReverse
+    ) && s.justify_content() == JustifyContent::SpaceBetween
     {
         s = s.with_justify_content(JustifyContent::SpaceAround);
     }
@@ -364,12 +437,18 @@ fn random_tree(rng: &mut Rng, depth: u32, tag: &mut u32, parent: Option<Parent>)
     *tag += 1;
     let t = *tag;
     if depth == 0 || rng.chance(30) {
-        return text(t, item_style(rng, parent), 10.0 + rng.below(90) as f32, 8.0 + rng.below(30) as f32);
+        return text(
+            t,
+            item_style(rng, parent),
+            10.0 + rng.below(90) as f32,
+            8.0 + rng.below(30) as f32,
+        );
     }
     let base = item_style(rng, parent);
     let mut style = container_style(rng, base, parent.is_none_or(|p| p.definite_width));
     let row = matches!(style.flex_direction(), FlexDirection::Row | FlexDirection::RowReverse);
-    let stretched = parent.is_some_and(|p| p.column && style.align_self().unwrap_or(p.align_items) == AlignItems::Stretch);
+    let stretched =
+        parent.is_some_and(|p| p.column && style.align_self().unwrap_or(p.align_items) == AlignItems::Stretch);
     // An auto width that the parent decides: the main size in a row, or a stretch to a column
     // of definite width. Any other auto width (the root, an unstretched item in a column, a
     // stretch to a content-sized column) is content-sized: `fit-content` against the available
@@ -432,18 +511,47 @@ fn px(l: Length<f32>) -> f32 {
 #[test]
 fn matches_taffy_on_hand_written_cases() {
     // Row with grow, padding and gap.
-    let a = text(1, Style::web().with_min_size(Length::zero(), Length::zero()).with_flex_grow(1.0), 20.0, 10.0);
-    let b = text(2, Style::web().with_min_size(Length::zero(), Length::zero()).with_flex_grow(2.0), 20.0, 30.0);
+    let a = text(
+        1,
+        Style::web()
+            .with_min_size(Length::zero(), Length::zero())
+            .with_flex_grow(1.0),
+        20.0,
+        10.0,
+    );
+    let b = text(
+        2,
+        Style::web()
+            .with_min_size(Length::zero(), Length::zero())
+            .with_flex_grow(2.0),
+        20.0,
+        30.0,
+    );
     let mut root = view(
         0,
-        Style::web().with_size(Length::Px(300.0), Length::Px(100.0)).with_padding(Edges::all(Length::Px(10.0))).with_gap(Length::zero(), Length::Px(5.0)),
+        Style::web()
+            .with_size(Length::Px(300.0), Length::Px(100.0))
+            .with_padding(Edges::all(Length::Px(10.0)))
+            .with_gap(Length::zero(), Length::Px(5.0)),
         vec![a, b],
     );
     compare(&mut root, 0);
 
     // Column, centered, shrinking.
-    let a = text(1, Style::web().with_min_size(Length::zero(), Length::zero()), 50.0, 80.0);
-    let b = text(2, Style::web().with_min_size(Length::zero(), Length::zero()).with_flex_shrink(2.0), 50.0, 80.0);
+    let a = text(
+        1,
+        Style::web().with_min_size(Length::zero(), Length::zero()),
+        50.0,
+        80.0,
+    );
+    let b = text(
+        2,
+        Style::web()
+            .with_min_size(Length::zero(), Length::zero())
+            .with_flex_shrink(2.0),
+        50.0,
+        80.0,
+    );
     let mut root = view(
         0,
         Style::web()
@@ -458,7 +566,12 @@ fn matches_taffy_on_hand_written_cases() {
     // the item's max-content width clamped by its `max-width`, plus its margins
     // (css-sizing-3 §5.1; css-flexbox-1 §9.9.3 clamps the size, never the margins).
     // Chrome: item 46 wide at x = 3, root 52.
-    let leaf = text(3, Style::web().with_min_size(Length::zero(), Length::zero()), 87.0, 10.0);
+    let leaf = text(
+        3,
+        Style::web().with_min_size(Length::zero(), Length::zero()),
+        87.0,
+        10.0,
+    );
     let item = view(
         2,
         Style::web()
@@ -474,10 +587,18 @@ fn matches_taffy_on_hand_written_cases() {
     // contribution from below, and its `max-width` then clamps it (css-flexbox-1 §9.9.3,
     // "clamped by its flex base size as a minimum (if it is not shrinkable), and then further
     // clamped by its min/max main size"). Chrome: root 46.
-    let leaf = text(3, Style::web().with_min_size(Length::zero(), Length::zero()), 87.0, 10.0);
+    let leaf = text(
+        3,
+        Style::web().with_min_size(Length::zero(), Length::zero()),
+        87.0,
+        10.0,
+    );
     let item = view(
         2,
-        Style::web().with_min_size(Length::zero(), Length::zero()).with_flex_shrink(0.0).with_max_size(Length::Px(46.0), Length::None),
+        Style::web()
+            .with_min_size(Length::zero(), Length::zero())
+            .with_flex_shrink(0.0)
+            .with_max_size(Length::Px(46.0), Length::None),
         vec![leaf],
     );
     let mut root = view(1, Style::web(), vec![item]);
@@ -499,7 +620,12 @@ fn matches_taffy_on_random_trees() {
             failures.push(e);
         }
     }
-    assert!(failures.is_empty(), "{} of {SEEDS} seeds differ:\n{}", failures.len(), failures.join("\n"));
+    assert!(
+        failures.is_empty(),
+        "{} of {SEEDS} seeds differ:\n{}",
+        failures.len(),
+        failures.join("\n")
+    );
 }
 
 const SEEDS: u64 = 1000;

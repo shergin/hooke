@@ -47,10 +47,18 @@ pub struct HNode {
 impl LayoutNode for HNode {
     type Scalar = f32;
     fn parts(&self) -> Parts<'_, Self> {
-        Parts { style: &self.props.style, state: &self.layout, children: &self.children }
+        Parts {
+            style: &self.props.style,
+            state: &self.layout,
+            children: &self.children,
+        }
     }
     fn parts_mut(&mut self) -> PartsMut<'_, Self> {
-        PartsMut { style: &self.props.style, state: &mut self.layout, children: &mut self.children }
+        PartsMut {
+            style: &self.props.style,
+            state: &mut self.layout,
+            children: &mut self.children,
+        }
     }
     fn style_key(&self) -> u64 {
         self.props.version
@@ -134,8 +142,15 @@ fn align(a: scene::Align) -> hooke::AlignItems {
 /// Maps the scene's style onto hooke's, with `box-sizing: border-box` and the scene's
 /// `position` set explicitly (`Style::web()` is content-box and static).
 pub fn to_hooke_style(s: &scene::Style) -> Style {
-    use hooke::{AlignContent as AC, Display as D, FlexDirection as FD, FlexWrap as FW, JustifyContent as J, Position as P};
-    let e = |e: scene::Edges<Dim>| hooke::Edges { left: len(e.left), right: len(e.right), top: len(e.top), bottom: len(e.bottom) };
+    use hooke::{
+        AlignContent as AC, Display as D, FlexDirection as FD, FlexWrap as FW, JustifyContent as J, Position as P,
+    };
+    let e = |e: scene::Edges<Dim>| hooke::Edges {
+        left: len(e.left),
+        right: len(e.right),
+        top: len(e.top),
+        bottom: len(e.bottom),
+    };
     Style::web()
         .with_box_sizing(hooke::BoxSizing::BorderBox)
         .with_display(match s.display {
@@ -189,7 +204,12 @@ pub fn to_hooke_style(s: &scene::Style) -> Style {
             top: lp(s.padding.top),
             bottom: lp(s.padding.bottom),
         })
-        .with_border(hooke::Edges { left: s.border.left, right: s.border.right, top: s.border.top, bottom: s.border.bottom })
+        .with_border(hooke::Edges {
+            left: s.border.left,
+            right: s.border.right,
+            top: s.border.top,
+            bottom: s.border.bottom,
+        })
         .with_gap(hooke::Length::Px(s.row_gap), hooke::Length::Px(s.column_gap))
         .with_inset(e(s.inset))
 }
@@ -208,7 +228,10 @@ fn root_constraints(v: Viewport) -> RootConstraints<f32> {
 
 fn build_node(scene: &Scene, i: NodeId) -> Handle<HNode> {
     let n = &scene.nodes[i];
-    let props = Handle::new(Props { style: to_hooke_style(&n.style), version: fresh_id() });
+    let props = Handle::new(Props {
+        style: to_hooke_style(&n.style),
+        version: fresh_id(),
+    });
     match &n.text {
         Some(t) => Handle::new(HNode {
             props,
@@ -328,7 +351,10 @@ impl HookeEngine {
                     })
                 })
                 .collect();
-            handles.into_iter().map(|h| h.join().expect("candidate thread panicked")).collect()
+            handles
+                .into_iter()
+                .map(|h| h.join().expect("candidate thread panicked"))
+                .collect()
         });
         self.calls.set(self.calls.get() + calls.load(Ordering::Relaxed));
         out
@@ -340,7 +366,16 @@ impl HookeEngine {
         fn walk(node: &Handle<HNode>, x: f32, y: f32, hidden: bool, out: &mut Vec<Frame>) {
             let hidden = hidden || node.props.style.display() == hooke::Display::None;
             let s = node.layout.size();
-            out.push(if hidden { Frame::default() } else { Frame { x, y, width: s.width, height: s.height } });
+            out.push(if hidden {
+                Frame::default()
+            } else {
+                Frame {
+                    x,
+                    y,
+                    width: s.width,
+                    height: s.height,
+                }
+            });
             for slot in &node.children {
                 walk(&slot.node, x + slot.offset.x, y + slot.offset.y, hidden, out);
             }
@@ -376,7 +411,13 @@ impl Engine for HookeEngine {
     fn layout(&mut self) {
         let scratch = self.scratch.get_mut();
         let mut cx = LayoutCx::new(scratch);
-        hooke::layout(&mut self.root, self.constraints, &mut cx, &mut Ahem { calls: &self.calls }).expect("not cancelled");
+        hooke::layout(
+            &mut self.root,
+            self.constraints,
+            &mut cx,
+            &mut Ahem { calls: &self.calls },
+        )
+        .expect("not cancelled");
         // Commit: the candidate is now the revision; the one it forked from is released.
         self.previous = None;
     }
@@ -430,7 +471,11 @@ mod tests {
         HookeEngine::frames_of(&fork, &mut forked);
         let mut committed = Vec::new();
         h.frames(&mut committed);
-        assert_eq!(compare(&before, &committed), Verdict::Agrees, "the committed revision is intact");
+        assert_eq!(
+            compare(&before, &committed),
+            Verdict::Agrees,
+            "the committed revision is intact"
+        );
 
         let mut t = TaffyEngine::build(&w.scene);
         t.layout();

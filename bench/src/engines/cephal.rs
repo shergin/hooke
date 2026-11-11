@@ -54,7 +54,12 @@ fn lp(p: Lp) -> LengthPercentage {
 }
 
 fn rect<T: Copy, U>(e: scene::Edges<T>, f: impl Fn(T) -> U) -> Rect<U> {
-    Rect { left: f(e.left), right: f(e.right), top: f(e.top), bottom: f(e.bottom) }
+    Rect {
+        left: f(e.left),
+        right: f(e.right),
+        top: f(e.top),
+        bottom: f(e.bottom),
+    }
 }
 
 fn align(a: scene::Align) -> AlignItems {
@@ -121,14 +126,26 @@ fn style(s: &scene::Style) -> Style {
     out.flex_grow = s.grow;
     out.flex_shrink = s.shrink;
     out.flex_basis = dimension(s.basis);
-    out.size = Size { width: dimension(s.width), height: dimension(s.height) };
+    out.size = Size {
+        width: dimension(s.width),
+        height: dimension(s.height),
+    };
     // `auto` minimum is the automatic minimum size; `auto` maximum resolves to none.
-    out.min_size = Size { width: lpa(s.min_width), height: lpa(s.min_height) };
-    out.max_size = Size { width: lpa(s.max_width), height: lpa(s.max_height) };
+    out.min_size = Size {
+        width: lpa(s.min_width),
+        height: lpa(s.min_height),
+    };
+    out.max_size = Size {
+        width: lpa(s.max_width),
+        height: lpa(s.max_height),
+    };
     out.margin = rect(s.margin, lpa);
     out.padding = rect(s.padding, lp);
     out.border = rect(s.border, LengthPercentage::length);
-    out.gap = Size { width: LengthPercentage::length(s.column_gap), height: LengthPercentage::length(s.row_gap) };
+    out.gap = Size {
+        width: LengthPercentage::length(s.column_gap),
+        height: LengthPercentage::length(s.row_gap),
+    };
     out.inset = rect(s.inset, lpa);
     out
 }
@@ -195,15 +212,22 @@ impl Engine for CephalEngine {
 
     fn layout(&mut self) {
         let root = self.nodes[0];
-        let space = Size { width: available(self.viewport.width), height: available(self.viewport.height) };
+        let space = Size {
+            width: available(self.viewport.width),
+            height: available(self.viewport.height),
+        };
         let calls = &mut self.measure_calls;
-        self.tree.compute_layout_with_measure(root, space, |text: &mut String, input: MeasureInput, _: &Style| {
-            *calls += 1;
-            let known = [input.known_dimensions.width, input.known_dimensions.height];
-            let avail = [text_avail(input.available_space.width), text_avail(input.available_space.height)];
-            let [width, height] = measure_text(text, known, avail);
-            MeasureOutput::from_size(Size { width, height })
-        });
+        self.tree
+            .compute_layout_with_measure(root, space, |text: &mut String, input: MeasureInput, _: &Style| {
+                *calls += 1;
+                let known = [input.known_dimensions.width, input.known_dimensions.height];
+                let avail = [
+                    text_avail(input.available_space.width),
+                    text_avail(input.available_space.height),
+                ];
+                let [width, height] = measure_text(text, known, avail);
+                MeasureOutput::from_size(Size { width, height })
+            });
     }
 
     fn frames(&self, out: &mut Vec<Frame>) {
@@ -217,8 +241,17 @@ impl Engine for CephalEngine {
             let l = self.tree.unrounded_layout(id);
             let p = self.parents[i];
             // The root is the origin; every other node is offset from its parent's border box.
-            let (x, y) = if p == usize::MAX { (0.0, 0.0) } else { (out[p].x + l.location.x, out[p].y + l.location.y) };
-            out.push(Frame { x, y, width: l.size.width, height: l.size.height });
+            let (x, y) = if p == usize::MAX {
+                (0.0, 0.0)
+            } else {
+                (out[p].x + l.location.x, out[p].y + l.location.y)
+            };
+            out.push(Frame {
+                x,
+                y,
+                width: l.size.width,
+                height: l.size.height,
+            });
         }
     }
 
@@ -319,19 +352,46 @@ pub(crate) mod reference {
             flex_grow: s.grow,
             flex_shrink: s.shrink,
             flex_basis: dim(s.basis),
-            size: taffy::Size { width: dim(s.width), height: dim(s.height) },
-            min_size: taffy::Size { width: lpa(s.min_width), height: lpa(s.min_height) },
-            max_size: taffy::Size { width: lpa(s.max_width), height: lpa(s.max_height) },
-            margin: taffy::Rect { left: lpa(s.margin.left), right: lpa(s.margin.right), top: lpa(s.margin.top), bottom: lpa(s.margin.bottom) },
-            padding: taffy::Rect { left: lp(s.padding.left), right: lp(s.padding.right), top: lp(s.padding.top), bottom: lp(s.padding.bottom) },
+            size: taffy::Size {
+                width: dim(s.width),
+                height: dim(s.height),
+            },
+            min_size: taffy::Size {
+                width: lpa(s.min_width),
+                height: lpa(s.min_height),
+            },
+            max_size: taffy::Size {
+                width: lpa(s.max_width),
+                height: lpa(s.max_height),
+            },
+            margin: taffy::Rect {
+                left: lpa(s.margin.left),
+                right: lpa(s.margin.right),
+                top: lpa(s.margin.top),
+                bottom: lpa(s.margin.bottom),
+            },
+            padding: taffy::Rect {
+                left: lp(s.padding.left),
+                right: lp(s.padding.right),
+                top: lp(s.padding.top),
+                bottom: lp(s.padding.bottom),
+            },
             border: taffy::Rect {
                 left: LengthPercentage::length(s.border.left),
                 right: LengthPercentage::length(s.border.right),
                 top: LengthPercentage::length(s.border.top),
                 bottom: LengthPercentage::length(s.border.bottom),
             },
-            gap: taffy::Size { width: LengthPercentage::length(s.column_gap), height: LengthPercentage::length(s.row_gap) },
-            inset: taffy::Rect { left: lpa(s.inset.left), right: lpa(s.inset.right), top: lpa(s.inset.top), bottom: lpa(s.inset.bottom) },
+            gap: taffy::Size {
+                width: LengthPercentage::length(s.column_gap),
+                height: LengthPercentage::length(s.row_gap),
+            },
+            inset: taffy::Rect {
+                left: lpa(s.inset.left),
+                right: lpa(s.inset.right),
+                top: lpa(s.inset.top),
+                bottom: lpa(s.inset.bottom),
+            },
             ..Default::default()
         }
     }
@@ -361,18 +421,30 @@ pub(crate) mod reference {
             ids[i] = Some(id);
         }
         let root = ids[0].unwrap();
-        let space = taffy::Size { width: avail(scene.viewport.width), height: avail(scene.viewport.height) };
+        let space = taffy::Size {
+            width: avail(scene.viewport.width),
+            height: avail(scene.viewport.height),
+        };
         tree.compute_layout_with_measure(root, space, |input, _, ctx, style| {
             let text = ctx.map(|t| t.as_str()).unwrap_or("");
-            taffy::compute_leaf_layout(input, style, |_, _| 0.0, |known, available| {
-                let a = |s: AvailableSpace| match s {
-                    AvailableSpace::Definite(v) => TextAvail::Definite(v),
-                    AvailableSpace::MinContent => TextAvail::MinContent,
-                    AvailableSpace::MaxContent => TextAvail::MaxContent,
-                };
-                let [width, height] = measure_text(text, [known.width, known.height], [a(available.width), a(available.height)]);
-                taffy::Size { width, height }
-            })
+            taffy::compute_leaf_layout(
+                input,
+                style,
+                |_, _| 0.0,
+                |known, available| {
+                    let a = |s: AvailableSpace| match s {
+                        AvailableSpace::Definite(v) => TextAvail::Definite(v),
+                        AvailableSpace::MinContent => TextAvail::MinContent,
+                        AvailableSpace::MaxContent => TextAvail::MaxContent,
+                    };
+                    let [width, height] = measure_text(
+                        text,
+                        [known.width, known.height],
+                        [a(available.width), a(available.height)],
+                    );
+                    taffy::Size { width, height }
+                },
+            )
         })
         .unwrap();
         let mut parents = vec![usize::MAX; n];
@@ -385,8 +457,17 @@ pub(crate) mod reference {
         for i in 0..n {
             let l = tree.layout(ids[i].unwrap()).unwrap();
             let p = parents[i];
-            let (x, y) = if p == usize::MAX { (0.0, 0.0) } else { (out[p].x + l.location.x, out[p].y + l.location.y) };
-            out.push(Frame { x, y, width: l.size.width, height: l.size.height });
+            let (x, y) = if p == usize::MAX {
+                (0.0, 0.0)
+            } else {
+                (out[p].x + l.location.x, out[p].y + l.location.y)
+            };
+            out.push(Frame {
+                x,
+                y,
+                width: l.size.width,
+                height: l.size.height,
+            });
         }
         out
     }
@@ -403,13 +484,24 @@ pub(crate) mod reference {
     }
 
     fn container(style: Style, children: Vec<usize>) -> Node {
-        Node { style, children, text: None }
+        Node {
+            style,
+            children,
+            text: None,
+        }
     }
     fn text(style: Style, t: &str) -> Node {
-        Node { style, children: Vec::new(), text: Some(t.to_owned()) }
+        Node {
+            style,
+            children: Vec::new(),
+            text: Some(t.to_owned()),
+        }
     }
     fn viewport(w: f32, h: f32) -> Viewport {
-        Viewport { width: Avail::Definite(w), height: Avail::Definite(h) }
+        Viewport {
+            width: Avail::Definite(w),
+            height: Avail::Definite(h),
+        }
     }
 
     /// A 300x100 row with 10px padding and three items growing 1, 2 and 1, the middle one with
@@ -422,13 +514,32 @@ pub(crate) mod reference {
             column_gap: 5.0,
             ..Style::default()
         };
-        let item = |grow: f32, basis: Dim| Style { grow, basis, ..Style::default() };
+        let item = |grow: f32, basis: Dim| Style {
+            grow,
+            basis,
+            ..Style::default()
+        };
         Scene {
             nodes: vec![
                 container(root, vec![1, 2, 3]),
                 container(item(1.0, Dim::Auto), vec![]),
-                container(Style { padding: Edges::all(Lp::Percent(0.1)), ..item(2.0, Dim::Px(20.0)) }, vec![]),
-                container(Style { margin: Edges { left: Dim::Px(4.0), ..Edges::all(Dim::Px(0.0)) }, ..item(1.0, Dim::Auto) }, vec![]),
+                container(
+                    Style {
+                        padding: Edges::all(Lp::Percent(0.1)),
+                        ..item(2.0, Dim::Px(20.0))
+                    },
+                    vec![],
+                ),
+                container(
+                    Style {
+                        margin: Edges {
+                            left: Dim::Px(4.0),
+                            ..Edges::all(Dim::Px(0.0))
+                        },
+                        ..item(1.0, Dim::Auto)
+                    },
+                    vec![],
+                ),
             ],
             viewport: viewport(800.0, 600.0),
         }
@@ -438,14 +549,28 @@ pub(crate) mod reference {
 
     /// A column with a 100px-wide box holding a wrapping text leaf, followed by a sized box.
     pub fn text_column(t: &str) -> Scene {
-        let root = Style { direction: scene::FlexDirection::Column, width: Dim::Px(400.0), ..Style::default() };
-        let boxed = Style { width: Dim::Px(100.0), align_items: scene::Align::FlexStart, ..Style::default() };
+        let root = Style {
+            direction: scene::FlexDirection::Column,
+            width: Dim::Px(400.0),
+            ..Style::default()
+        };
+        let boxed = Style {
+            width: Dim::Px(100.0),
+            align_items: scene::Align::FlexStart,
+            ..Style::default()
+        };
         Scene {
             nodes: vec![
                 container(root, vec![1, 3]),
                 container(boxed, vec![2]),
                 text(Style::default(), t),
-                container(Style { height: Dim::Px(30.0), ..Style::default() }, vec![]),
+                container(
+                    Style {
+                        height: Dim::Px(30.0),
+                        ..Style::default()
+                    },
+                    vec![],
+                ),
             ],
             viewport: viewport(800.0, 600.0),
         }
@@ -463,21 +588,37 @@ pub(crate) mod reference {
         };
         let abs1 = Style {
             position: scene::Position::Absolute,
-            inset: Edges { left: Dim::Px(10.0), top: Dim::Px(20.0), right: Dim::Auto, bottom: Dim::Auto },
+            inset: Edges {
+                left: Dim::Px(10.0),
+                top: Dim::Px(20.0),
+                right: Dim::Auto,
+                bottom: Dim::Auto,
+            },
             width: Dim::Px(50.0),
             height: Dim::Px(40.0),
             ..Style::default()
         };
         let abs2 = Style {
             position: scene::Position::Absolute,
-            inset: Edges { left: Dim::Percent(0.1), right: Dim::Px(30.0), top: Dim::Auto, bottom: Dim::Percent(0.25) },
+            inset: Edges {
+                left: Dim::Percent(0.1),
+                right: Dim::Px(30.0),
+                top: Dim::Auto,
+                bottom: Dim::Percent(0.25),
+            },
             height: Dim::Px(10.0),
             ..Style::default()
         };
         Scene {
             nodes: vec![
                 container(root, vec![1, 2, 3]),
-                container(Style { width: Dim::Px(20.0), ..Style::default() }, vec![]),
+                container(
+                    Style {
+                        width: Dim::Px(20.0),
+                        ..Style::default()
+                    },
+                    vec![],
+                ),
                 container(abs1, vec![]),
                 container(abs2, vec![]),
             ],
@@ -516,7 +657,10 @@ mod tests {
         let mut e = CephalEngine::build(&scene);
         e.layout();
         let f = frames_of(&e)[2];
-        assert!((f.width - 100.0).abs() <= TOL && (f.height - 20.0).abs() <= TOL, "{f:?}");
+        assert!(
+            (f.width - 100.0).abs() <= TOL && (f.height - 20.0).abs() <= TOL,
+            "{f:?}"
+        );
     }
 
     #[test]
@@ -554,7 +698,10 @@ mod tests {
         scene.nodes[1].style.width = Dim::Auto;
         let mut e = CephalEngine::build(&scene);
         e.layout();
-        scene.viewport = Viewport { width: Avail::Definite(90.0), height: Avail::MaxContent };
+        scene.viewport = Viewport {
+            width: Avail::Definite(90.0),
+            height: Avail::MaxContent,
+        };
         e.resize(scene.viewport);
         e.layout();
         let mut fresh = CephalEngine::build(&scene);

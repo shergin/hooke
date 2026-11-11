@@ -31,7 +31,9 @@ use super::{Cancelled, Input, Pass};
 use crate::geometry::{Axis, Edges, Size};
 use crate::measure::{Available, Measure};
 use crate::scalar::{Opt, Scalar};
-use crate::style::{slot, AlignContent, AlignItems, BoxSizing, Direction, FlexWrap, JustifyContent, Overflow, Position, Style, Unit};
+use crate::style::{
+    AlignContent, AlignItems, BoxSizing, Direction, FlexWrap, JustifyContent, Overflow, Position, Style, Unit, slot,
+};
 use crate::tree::LayoutNode;
 use alloc::vec::Vec;
 
@@ -74,7 +76,11 @@ impl Flow {
     fn new<S: Scalar>(style: &Style<S>, direction: Direction) -> Self {
         let fd = style.flex_direction();
         let rtl = direction == Direction::Rtl;
-        let main = if fd.is_column() { Axis::Vertical } else { Axis::Horizontal };
+        let main = if fd.is_column() {
+            Axis::Vertical
+        } else {
+            Axis::Horizontal
+        };
         let wrap = style.flex_wrap();
         let wrap_reverse = wrap == FlexWrap::WrapReverse;
         Flow {
@@ -95,7 +101,11 @@ impl Flow {
     /// Whether the flex start of `axis` is at its physical end.
     #[inline]
     pub fn reversed(&self, axis: Axis) -> bool {
-        if axis == self.main { self.main_reversed } else { self.cross_reversed }
+        if axis == self.main {
+            self.main_reversed
+        } else {
+            self.cross_reversed
+        }
     }
     /// Whether the writing-mode `start` of `axis` is the same edge as its flex start.
     #[inline]
@@ -172,7 +182,12 @@ pub(crate) fn scrollbar_gutter<S: Scalar>(style: &Style<S>, direction: Direction
 pub(crate) fn padding_border<S: Scalar>(style: &Style<S>, basis: Opt<S>) -> Edges<S> {
     let p = style.resolve_edges(slot::PADDING, basis);
     let b = style.border();
-    Edges { left: p.left + b.left, right: p.right + b.right, top: p.top + b.top, bottom: p.bottom + b.bottom }
+    Edges {
+        left: p.left + b.left,
+        right: p.right + b.right,
+        top: p.top + b.top,
+        bottom: p.bottom + b.bottom,
+    }
 }
 
 /// Padding plus border plus the scrollbar gutter: the inset of the content box within the
@@ -180,13 +195,23 @@ pub(crate) fn padding_border<S: Scalar>(style: &Style<S>, basis: Opt<S>) -> Edge
 pub(crate) fn content_inset<S: Scalar>(style: &Style<S>, basis: Opt<S>, direction: Direction) -> Edges<S> {
     let pb = padding_border(style, basis);
     let g = scrollbar_gutter(style, direction);
-    Edges { left: pb.left + g.left, right: pb.right + g.right, top: pb.top + g.top, bottom: pb.bottom + g.bottom }
+    Edges {
+        left: pb.left + g.left,
+        right: pb.right + g.right,
+        top: pb.top + g.top,
+        bottom: pb.bottom + g.bottom,
+    }
 }
 
 /// Inner (content-box) min and max sizes of a container on both axes from its style, for
 /// clamping content-derived sizes.
 fn inner_bounds<S: Scalar>(style: &Style<S>, input: &Input<S>, pb_only: Size<S>, inset: Size<S>) -> Bounds<S> {
-    let mut b = Bounds { min_inner: Size::new(Opt::NONE, Opt::NONE), max_inner: Size::new(Opt::NONE, Opt::NONE), min_bb: Size::new(Opt::NONE, Opt::NONE), max_bb: Size::new(Opt::NONE, Opt::NONE) };
+    let mut b = Bounds {
+        min_inner: Size::new(Opt::NONE, Opt::NONE),
+        max_inner: Size::new(Opt::NONE, Opt::NONE),
+        min_bb: Size::new(Opt::NONE, Opt::NONE),
+        max_bb: Size::new(Opt::NONE, Opt::NONE),
+    };
     for axis in [Axis::Horizontal, Axis::Vertical] {
         let (_, min_slot, max_slot) = slot::sizing(axis);
         let basis = input.parent_size.get(axis);
@@ -213,7 +238,11 @@ struct Bounds<S: Scalar> {
 #[inline]
 pub(crate) fn resolve_bb<S: Scalar>(style: &Style<S>, i: usize, basis: Opt<S>, pb_axis: S) -> (Opt<S>, Unit) {
     let (v, tag) = style.resolve_tagged(i, basis);
-    let v = if style.box_sizing() == BoxSizing::ContentBox { v.map(|v| v + pb_axis) } else { v };
+    let v = if style.box_sizing() == BoxSizing::ContentBox {
+        v.map(|v| v + pb_axis)
+    } else {
+        v
+    };
     (v, tag)
 }
 
@@ -226,12 +255,20 @@ pub(crate) fn transfer<S: Scalar>(style: &Style<S>, pb: Size<S>, from: Axis, val
 
 /// [`transfer`] given the `box-sizing` directly.
 pub(crate) fn transfer_bb<S: Scalar>(content_box: bool, pb: Size<S>, from: Axis, value: S, ratio: S) -> S {
-    let inner = if content_box { (value - pb.get(from)).max(S::ZERO) } else { value };
+    let inner = if content_box {
+        (value - pb.get(from)).max(S::ZERO)
+    } else {
+        value
+    };
     let other = match from {
         Axis::Horizontal => inner / ratio,
         Axis::Vertical => inner * ratio,
     };
-    if content_box { other + pb.get(from.cross()) } else { other }
+    if content_box {
+        other + pb.get(from.cross())
+    } else {
+        other
+    }
 }
 
 /// The resolved direction of a node whose own `direction` may be `inherit`.
@@ -287,7 +324,11 @@ where
     };
     let (own_w, tag_w, min_w, max_w) = own(Axis::Horizontal);
     let (own_h, _, min_h, max_h) = own(Axis::Vertical);
-    let ratio = if input.content_size { Opt::NONE } else { style.aspect_ratio() };
+    let ratio = if input.content_size {
+        Opt::NONE
+    } else {
+        style.aspect_ratio()
+    };
     // A definite size on one axis transfers through the aspect ratio to the other.
     let (own_w, own_h) = match (own_w.get(), own_h.get(), ratio.get()) {
         (None, Some(h), Some(r)) => (Opt::some(transfer(&style, pb_only, Axis::Vertical, h, r)), own_h),
@@ -329,9 +370,22 @@ where
     };
     if empty {
         // A container with no children: the algorithm over zero items, without the items.
-        return Ok((empty_size(&style, &input, pb_sum, pb_only, width_bb, height_bb), Opt::NONE));
+        return Ok((
+            empty_size(&style, &input, pb_sum, pb_only, width_bb, height_bb),
+            Opt::NONE,
+        ));
     }
-    run(pass, node, &style, flow, pb, width_bb, height_bb, height_indefinite, &input)
+    run(
+        pass,
+        node,
+        &style,
+        flow,
+        pb,
+        width_bb,
+        height_bb,
+        height_indefinite,
+        &input,
+    )
 }
 
 /// The border-box size of a container with no children, as [`run`] computes it over zero items:
@@ -351,7 +405,8 @@ fn empty_size<S: Scalar>(
         None if input.content_size => pb_sum.height,
         None => {
             let b = inner_bounds(style, input, pb_only, pb_sum);
-            (S::ZERO.clamp_opt(b.min_inner.height, b.max_inner.height) + pb_sum.height).clamp_opt(b.min_bb.height, b.max_bb.height)
+            (S::ZERO.clamp_opt(b.min_inner.height, b.max_inner.height) + pb_sum.height)
+                .clamp_opt(b.min_bb.height, b.max_bb.height)
         }
     };
     Size::new(width_bb.max(pb_only.width), height.max(pb_only.height))
@@ -413,17 +468,27 @@ where
     M: Measure<N>,
 {
     let pb_sum = pb.sums();
-    let mut available = Size::new(constraint, match inner_height.get() {
-        Some(h) => Available::Definite(h),
-        None => input.available.height.shrink(pb_sum.height),
-    });
+    let mut available = Size::new(
+        constraint,
+        match inner_height.get() {
+            Some(h) => Available::Definite(h),
+            None => input.available.height.shrink(pb_sum.height),
+        },
+    );
     if flow.main == Axis::Vertical && inner_height.is_none() {
         // A column container's height is content-based: its items never wrap against the
         // available height, and are measured under a max-content constraint.
         available.height = Available::MaxContent;
     }
     let inner = Size::new(Opt::NONE, inner_height);
-    let percent = Size::new(Opt::NONE, if input.indefinite.height { Opt::NONE } else { inner_height });
+    let percent = Size::new(
+        Opt::NONE,
+        if input.indefinite.height {
+            Opt::NONE
+        } else {
+            inner_height
+        },
+    );
     let (gap_main, gap_cross) = gaps(style, flow, percent);
     let pb_only = padding_border(style, input.parent_size.width).sums();
     let bounds = inner_bounds(style, input, pb_only, pb_sum);
@@ -516,7 +581,10 @@ where
     let inner_width = (width_bb - pb_sum.width).max(S::ZERO);
     let inner_height = height_bb.map(|h| (h - pb_sum.height).max(S::ZERO));
     let inner = Size::new(Opt::some(inner_width), inner_height);
-    let percent = Size::new(Opt::some(inner_width), if height_indefinite { Opt::NONE } else { inner_height });
+    let percent = Size::new(
+        Opt::some(inner_width),
+        if height_indefinite { Opt::NONE } else { inner_height },
+    );
     // Percentage gaps resolve against definite sizes only.
     let (gap_main, gap_cross) = gaps(style, flow, percent);
     let bounds = inner_bounds(style, input, pb_only, pb_sum);
@@ -535,10 +603,13 @@ where
         },
         inner,
         percent,
-        available: Size::new(Available::Definite(inner_width), match inner_height.get() {
-            Some(h) => Available::Definite(h),
-            None => input.available.height.shrink(pb_sum.height),
-        }),
+        available: Size::new(
+            Available::Definite(inner_width),
+            match inner_height.get() {
+                Some(h) => Available::Definite(h),
+                None => input.available.height.shrink(pb_sum.height),
+            },
+        ),
         min_inner: if own { bounds.min_inner } else { none },
         max_inner: if own { bounds.max_inner } else { none },
         style_min_inner: bounds.min_inner,
@@ -560,7 +631,18 @@ where
     items::collect(node, &ctx, &mut items, &mut paths, &mut absolute);
 
     let decided = Size::new(Opt::some(width_bb), height_bb);
-    let result = run_steps(pass, node, &ctx, &mut items, &paths, &absolute, &mut flex_lines, input, decided, pb_only);
+    let result = run_steps(
+        pass,
+        node,
+        &ctx,
+        &mut items,
+        &paths,
+        &absolute,
+        &mut flex_lines,
+        input,
+        decided,
+        pb_only,
+    );
 
     pass.cx.scratch.give_items(items);
     pass.cx.scratch.give_indices(paths);
@@ -616,7 +698,9 @@ where
     };
     lines::collect(ctx, items, flex_lines, limit);
     if ctx.inner.get(main).is_none() && ctx.flow.multiline && flex_lines.len() > 1 {
-        let longest = flex_lines.iter().fold(S::ZERO, |acc, l| acc.max(lines::line_length(ctx, &items[l.range()])));
+        let longest = flex_lines
+            .iter()
+            .fold(S::ZERO, |acc, l| acc.max(lines::line_length(ctx, &items[l.range()])));
         inner_main = longest.clamp_opt(ctx.min_inner.get(main), ctx.max_inner.get(main));
     }
 
@@ -645,14 +729,32 @@ where
     place::align_cross(ctx, items, flex_lines, inner_cross);
 
     if !input.final_layout {
-        let baseline =
-            place::container_baseline(pass, node, ctx, items, paths, flex_lines, inner_main, inner_cross, false)?;
+        let baseline = place::container_baseline(
+            pass,
+            node,
+            ctx,
+            items,
+            paths,
+            flex_lines,
+            inner_main,
+            inner_cross,
+            false,
+        )?;
         return Ok((size, baseline));
     }
 
     // Final layout: children at their used sizes, offsets into this list, then §4.1.
-    let baseline =
-        place::final_layout(pass, node, ctx, items, paths, flex_lines, inner_main, inner_cross, main_definite)?;
+    let baseline = place::final_layout(
+        pass,
+        node,
+        ctx,
+        items,
+        paths,
+        flex_lines,
+        inner_main,
+        inner_cross,
+        main_definite,
+    )?;
     place::absolute_children(pass, node, ctx, absolute, paths, size)?;
     Ok((size, baseline))
 }

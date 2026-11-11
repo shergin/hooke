@@ -1,6 +1,6 @@
 //! Reader for the Chrome fixture corpus in `tests/fixtures/` (format: `tests/fixtures/README.md`).
 
-use super::{ahem_text, view, Node};
+use super::{Node, ahem_text, view};
 use hooke::{
     AlignContent, AlignItems, Available, BoxSizing, Direction, Display, Edges, FlexDirection, FlexWrap, Handle,
     JustifyContent, Length, Opt, Overflow, Position, Size, Style,
@@ -51,7 +51,9 @@ fn length(key: &str, v: &str) -> Result<Length<f32>, String> {
 }
 
 fn px(key: &str, v: &str) -> Result<f32, String> {
-    v.strip_suffix("px").and_then(|n| n.parse().ok()).ok_or_else(|| format!("{key}={v}: not a px length"))
+    v.strip_suffix("px")
+        .and_then(|n| n.parse().ok())
+        .ok_or_else(|| format!("{key}={v}: not a px length"))
 }
 
 fn num(key: &str, v: &str) -> Result<f32, String> {
@@ -122,7 +124,10 @@ fn unescape(v: &str) -> Result<String, String> {
     while let Some(i) = rest.find('\\') {
         out.push_str(&rest[..i]);
         let tail = &rest[i..];
-        let end = tail.find('}').filter(|_| tail.starts_with("\\u{")).ok_or_else(|| format!("bad escape in {v}"))?;
+        let end = tail
+            .find('}')
+            .filter(|_| tail.starts_with("\\u{"))
+            .ok_or_else(|| format!("bad escape in {v}"))?;
         let code = u32::from_str_radix(&tail[3..end], 16).map_err(|e| format!("bad escape in {v}: {e}"))?;
         out.push(char::from_u32(code).ok_or_else(|| format!("bad escape in {v}"))?);
         rest = &tail[end + 1..];
@@ -144,7 +149,9 @@ fn style(props: &str) -> Result<(Style, Option<String>), String> {
     let mut border = Edges::all(0.0f32);
     let (mut has_position, mut has_box_sizing) = (false, false);
     for pair in props.split_whitespace() {
-        let (k, v) = pair.split_once('=').ok_or_else(|| format!("{pair}: expected key=value"))?;
+        let (k, v) = pair
+            .split_once('=')
+            .ok_or_else(|| format!("{pair}: expected key=value"))?;
         match k {
             "display" => {
                 s = s.with_display(match v {
@@ -278,8 +285,13 @@ pub fn parse(src: &str) -> Result<Fixture, String> {
         match head {
             "source" => source = rest.to_string(),
             "viewport" => {
-                let (w, h) = rest.split_once(' ').ok_or_else(|| at("viewport: expected two values".into()))?;
-                avail = Some(Size::new(available("viewport", w).map_err(at)?, available("viewport", h).map_err(at)?));
+                let (w, h) = rest
+                    .split_once(' ')
+                    .ok_or_else(|| at("viewport: expected two values".into()))?;
+                avail = Some(Size::new(
+                    available("viewport", w).map_err(at)?,
+                    available("viewport", h).map_err(at)?,
+                ));
             }
             "rounding" => rounding = Some(rest == "true"),
             "node" => {
@@ -294,7 +306,13 @@ pub fn parse(src: &str) -> Result<Fixture, String> {
                 }
                 let props = parts.next().unwrap_or("").to_string();
                 let (style, text) = style(&props).map_err(at)?;
-                let node = FixtureNode { style, text, expected, props, children: Vec::new() };
+                let node = FixtureNode {
+                    style,
+                    text,
+                    expected,
+                    props,
+                    children: Vec::new(),
+                };
                 // Close every open node at this depth or deeper.
                 while stack.last().is_some_and(|(d, _)| *d >= depth) {
                     let (_, done) = stack.pop().unwrap();
@@ -332,6 +350,10 @@ pub fn build(node: &FixtureNode, next_tag: &mut u32) -> Handle<Node> {
     *next_tag += 1;
     match &node.text {
         Some(text) if node.children.is_empty() => ahem_text(tag, node.style, text, false),
-        _ => view(tag, node.style, node.children.iter().map(|c| build(c, next_tag)).collect()),
+        _ => view(
+            tag,
+            node.style,
+            node.children.iter().map(|c| build(c, next_tag)).collect(),
+        ),
     }
 }

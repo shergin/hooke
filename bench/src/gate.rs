@@ -25,7 +25,11 @@ use std::time::Instant;
 /// The cold-layout time above which an engine is not sampled: `HOOKE_BENCH_SLOW_SECS`,
 /// default 2.0 seconds.
 pub fn slow_secs() -> f64 {
-    std::env::var("HOOKE_BENCH_SLOW_SECS").ok().and_then(|v| v.parse().ok()).filter(|v: &f64| *v > 0.0).unwrap_or(2.0)
+    std::env::var("HOOKE_BENCH_SLOW_SECS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .filter(|v: &f64| *v > 0.0)
+        .unwrap_or(2.0)
 }
 
 /// Absolute tolerance in layout units.
@@ -41,10 +45,16 @@ pub fn secs(v: f64) -> String {
 pub enum Verdict {
     Agrees,
     /// The first node, in pre-order, whose frame differs.
-    Differs { node: NodeId, hooke: Frame, other: Frame },
+    Differs {
+        node: NodeId,
+        hooke: Frame,
+        other: Frame,
+    },
     DidNotRun(String),
     /// The gate's cold layout took `seconds`, more than [`slow_secs`]; nothing else is run.
-    TooSlow { seconds: f64 },
+    TooSlow {
+        seconds: f64,
+    },
 }
 
 impl Verdict {
@@ -122,7 +132,13 @@ pub fn run<E: Engine>(scene: &Scene, edit: Option<&Edit>, resized: Viewport) -> 
     let mut cold = Vec::new();
     e.frames(&mut cold);
     if cold_secs > slow_secs() {
-        return Run { cold, edit: None, resize: Vec::new(), cold_secs, too_slow: true };
+        return Run {
+            cold,
+            edit: None,
+            resize: Vec::new(),
+            cold_secs,
+            too_slow: true,
+        };
     }
     let edit = edit.map(|ed| {
         e.set_text(ed.node, &ed.after);
@@ -135,7 +151,13 @@ pub fn run<E: Engine>(scene: &Scene, edit: Option<&Edit>, resized: Viewport) -> 
     e.layout();
     let mut resize = Vec::new();
     e.frames(&mut resize);
-    Run { cold, edit, resize, cold_secs, too_slow: false }
+    Run {
+        cold,
+        edit,
+        resize,
+        cold_secs,
+        too_slow: false,
+    }
 }
 
 /// [`run`] with panics caught and turned into a reason.
@@ -156,7 +178,11 @@ pub fn compare(hooke: &[Frame], other: &[Frame]) -> Verdict {
     let close = |a: f32, b: f32| (a - b).abs() <= TOLERANCE;
     for (node, (h, o)) in hooke.iter().zip(other).enumerate() {
         if !(close(h.x, o.x) && close(h.y, o.y) && close(h.width, o.width) && close(h.height, o.height)) {
-            return Verdict::Differs { node, hooke: *h, other: *o };
+            return Verdict::Differs {
+                node,
+                hooke: *h,
+                other: *o,
+            };
         }
     }
     Verdict::Agrees
@@ -166,19 +192,39 @@ fn row(engine: &'static str, reference: &Result<Run, String>, other: Result<Run,
     match (reference, other) {
         (Err(r), _) => {
             let v = Verdict::DidNotRun(format!("hooke did not run: {r}"));
-            Row { engine, cold: v.clone(), edit: Some(v.clone()), resize: v }
+            Row {
+                engine,
+                cold: v.clone(),
+                edit: Some(v.clone()),
+                resize: v,
+            }
         }
         (Ok(_), Err(r)) => {
             let v = Verdict::DidNotRun(r);
-            Row { engine, cold: v.clone(), edit: Some(v.clone()), resize: v }
+            Row {
+                engine,
+                cold: v.clone(),
+                edit: Some(v.clone()),
+                resize: v,
+            }
         }
         (Ok(h), _) if h.too_slow && engine != HookeEngine::NAME => {
             let v = Verdict::DidNotRun(format!("hooke too slow ({} s per layout)", secs(h.cold_secs)));
-            Row { engine, cold: v.clone(), edit: Some(v.clone()), resize: v }
+            Row {
+                engine,
+                cold: v.clone(),
+                edit: Some(v.clone()),
+                resize: v,
+            }
         }
         (Ok(_), Ok(o)) if o.too_slow => {
             let v = Verdict::TooSlow { seconds: o.cold_secs };
-            Row { engine, cold: v.clone(), edit: Some(v.clone()), resize: v }
+            Row {
+                engine,
+                cold: v.clone(),
+                edit: Some(v.clone()),
+                resize: v,
+            }
         }
         (Ok(h), Ok(o)) => Row {
             engine,
@@ -233,16 +279,34 @@ mod tests {
     use crate::workloads::{self, Workload};
 
     fn scene(nodes: Vec<Node>, w: f32, h: f32) -> Scene {
-        Scene { nodes, viewport: Viewport { width: Avail::Definite(w), height: Avail::Definite(h) } }
+        Scene {
+            nodes,
+            viewport: Viewport {
+                width: Avail::Definite(w),
+                height: Avail::Definite(h),
+            },
+        }
     }
     fn container(style: Style, children: Vec<usize>) -> Node {
-        Node { style, children, text: None }
+        Node {
+            style,
+            children,
+            text: None,
+        }
     }
     fn text(style: Style, t: &str) -> Node {
-        Node { style, children: Vec::new(), text: Some(t.into()) }
+        Node {
+            style,
+            children: Vec::new(),
+            text: Some(t.into()),
+        }
     }
     fn root() -> Style {
-        Style { width: Dim::Percent(1.0), height: Dim::Percent(1.0), ..Style::default() }
+        Style {
+            width: Dim::Percent(1.0),
+            height: Dim::Percent(1.0),
+            ..Style::default()
+        }
     }
     fn workload(scene: Scene) -> Workload {
         let leaf = scene.text_leaves().next();
@@ -254,7 +318,10 @@ mod tests {
                 before: scene.nodes[node].text.clone().unwrap(),
                 after: "HHHHHHHHHH\u{200B}HHHHHHHHHHHHHHHHHHHH\u{200B}HH".into(),
             }),
-            resized: Viewport { width: Avail::Definite(330.0), height: Avail::Definite(200.0) },
+            resized: Viewport {
+                width: Avail::Definite(330.0),
+                height: Avail::Definite(200.0),
+            },
             scene,
         }
     }
@@ -270,19 +337,44 @@ mod tests {
 
     #[test]
     fn a_slow_engine_is_too_slow_and_excluded_everywhere() {
-        let fast = Run { cold: vec![Frame::default()], edit: None, resize: vec![Frame::default()], cold_secs: 0.001, too_slow: false };
-        let slow = Run { cold: vec![Frame::default()], edit: None, resize: Vec::new(), cold_secs: 3.5, too_slow: true };
+        let fast = Run {
+            cold: vec![Frame::default()],
+            edit: None,
+            resize: vec![Frame::default()],
+            cold_secs: 0.001,
+            too_slow: false,
+        };
+        let slow = Run {
+            cold: vec![Frame::default()],
+            edit: None,
+            resize: Vec::new(),
+            cold_secs: 3.5,
+            too_slow: true,
+        };
         let r = row("taffy", &Ok(fast), Ok(slow));
         assert_eq!(r.cold, Verdict::TooSlow { seconds: 3.5 });
         assert_eq!(r.cold.cell(), "too slow: 3.5 s per layout, not sampled");
         for family in ["cold", "deep", "text", "edit", "resize", "candidates"] {
-            assert!(r.exclusion(family).is_some_and(|e| e.starts_with("too slow")), "{family}");
+            assert!(
+                r.exclusion(family).is_some_and(|e| e.starts_with("too slow")),
+                "{family}"
+            );
         }
     }
 
     #[test]
     fn compare_finds_the_first_differing_node() {
-        let a = vec![Frame::default(), Frame { x: 1.0, ..Frame::default() }, Frame { y: 2.0, ..Frame::default() }];
+        let a = vec![
+            Frame::default(),
+            Frame {
+                x: 1.0,
+                ..Frame::default()
+            },
+            Frame {
+                y: 2.0,
+                ..Frame::default()
+            },
+        ];
         assert_eq!(compare(&a, &a), Verdict::Agrees);
         let mut b = a.clone();
         b[1].x += 0.005;
@@ -311,12 +403,38 @@ mod tests {
     fn row_with_grow_padding_gap_and_text() {
         let nodes = vec![
             container(
-                Style { padding: Edges::all(Lp::Px(10.0)), column_gap: 5.0, align_items: Align::FlexStart, ..root() },
+                Style {
+                    padding: Edges::all(Lp::Px(10.0)),
+                    column_gap: 5.0,
+                    align_items: Align::FlexStart,
+                    ..root()
+                },
                 vec![1, 2, 3],
             ),
-            text(Style { grow: 1.0, ..Style::default() }, "HHH\u{200B}HH\u{200B}HHHH"),
-            text(Style { grow: 2.0, margin: Edges::all(Dim::Px(3.0)), ..Style::default() }, "HHHHHH\u{200B}HHHHHHHHHHHHHH"),
-            container(Style { width: Dim::Px(40.0), height: Dim::Px(25.0), border: Edges::all(2.0), ..Style::default() }, vec![]),
+            text(
+                Style {
+                    grow: 1.0,
+                    ..Style::default()
+                },
+                "HHH\u{200B}HH\u{200B}HHHH",
+            ),
+            text(
+                Style {
+                    grow: 2.0,
+                    margin: Edges::all(Dim::Px(3.0)),
+                    ..Style::default()
+                },
+                "HHHHHH\u{200B}HHHHHHHHHHHHHH",
+            ),
+            container(
+                Style {
+                    width: Dim::Px(40.0),
+                    height: Dim::Px(25.0),
+                    border: Edges::all(2.0),
+                    ..Style::default()
+                },
+                vec![],
+            ),
         ];
         assert_hooke_taffy_agree(&workload(scene(nodes, 300.0, 200.0)));
     }
@@ -324,14 +442,45 @@ mod tests {
     #[test]
     fn column_of_wrapping_paragraphs() {
         let nodes = vec![
-            container(Style { direction: FlexDirection::Row, ..root() }, vec![1]),
             container(
-                Style { direction: FlexDirection::Column, width: Dim::Percent(0.5), padding: Edges::all(Lp::Px(5.0)), row_gap: 4.0, ..Style::default() },
+                Style {
+                    direction: FlexDirection::Row,
+                    ..root()
+                },
+                vec![1],
+            ),
+            container(
+                Style {
+                    direction: FlexDirection::Column,
+                    width: Dim::Percent(0.5),
+                    padding: Edges::all(Lp::Px(5.0)),
+                    row_gap: 4.0,
+                    ..Style::default()
+                },
                 vec![2, 3, 4],
             ),
-            text(Style { shrink: 0.0, ..Style::default() }, "HHH\u{200B}HHHHH\u{200B}HH\u{200B}HHHHHHHH\u{200B}H"),
-            text(Style { shrink: 0.0, ..Style::default() }, "HHHHHHHH\u{200B}HHHHHHHH\u{200B}HHHHHHHH"),
-            text(Style { shrink: 0.0, justify: Justify::Center, ..Style::default() }, "HH"),
+            text(
+                Style {
+                    shrink: 0.0,
+                    ..Style::default()
+                },
+                "HHH\u{200B}HHHHH\u{200B}HH\u{200B}HHHHHHHH\u{200B}H",
+            ),
+            text(
+                Style {
+                    shrink: 0.0,
+                    ..Style::default()
+                },
+                "HHHHHHHH\u{200B}HHHHHHHH\u{200B}HHHHHHHH",
+            ),
+            text(
+                Style {
+                    shrink: 0.0,
+                    justify: Justify::Center,
+                    ..Style::default()
+                },
+                "HH",
+            ),
         ];
         assert_hooke_taffy_agree(&workload(scene(nodes, 300.0, 200.0)));
     }

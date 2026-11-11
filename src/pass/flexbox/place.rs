@@ -1,17 +1,17 @@
 //! Placement: main-axis alignment (§9.5), cross-axis alignment (§9.6), the final layout of
 //! every child, container baselines (§8.5) and absolutely positioned children (§4.1).
 
-use super::items::{ask, Item};
-use super::lines::{definiteness, inner_baseline, Line};
+use super::items::{Item, ask};
+use super::lines::{Line, definiteness, inner_baseline};
 use super::{
-    along, count, padding_border, resolve_bb, resolve_direction, transfer_bb, two, Ctx, Flow, F_BASELINE,
-    F_BASIS_DEFINITE, F_RELATIVE, M_BOTTOM, M_LEFT, M_RIGHT, M_TOP,
+    Ctx, F_BASELINE, F_BASIS_DEFINITE, F_RELATIVE, Flow, M_BOTTOM, M_LEFT, M_RIGHT, M_TOP, along, count,
+    padding_border, resolve_bb, resolve_direction, transfer_bb, two,
 };
 use crate::geometry::{Axis, Edges, Point, Size};
 use crate::measure::{Available, Measure};
 use crate::pass::{Cancelled, Input, Pass};
 use crate::scalar::{Opt, Scalar};
-use crate::style::{slot, AlignContent, AlignItems, BoxSizing, Direction, JustifyContent, Style, Unit};
+use crate::style::{AlignContent, AlignItems, BoxSizing, Direction, JustifyContent, Style, Unit, slot};
 use crate::tree::LayoutNode;
 
 /// A distribution keyword after css-align's fallbacks, in logical (flex-relative) terms.
@@ -44,7 +44,13 @@ fn resolve_distribution<S: Scalar>(kw: Keyword, free: S, start_is_flex_start: bo
             other => (other, false),
         };
     }
-    let ws = |start: bool| if start == start_is_flex_start { Distribute::FlexStart } else { Distribute::FlexEnd };
+    let ws = |start: bool| {
+        if start == start_is_flex_start {
+            Distribute::FlexStart
+        } else {
+            Distribute::FlexEnd
+        }
+    };
     if free <= S::ZERO && safe {
         return ws(true);
     }
@@ -86,7 +92,14 @@ fn distribution<S: Scalar>(d: Distribute, free: S, n: usize) -> (S, S) {
         Distribute::FlexStart => (S::ZERO, S::ZERO),
         Distribute::FlexEnd => (free, S::ZERO),
         Distribute::Center => (free / two(), S::ZERO),
-        Distribute::SpaceBetween => (S::ZERO, if n > 1 { free.max(S::ZERO) / count(n - 1) } else { S::ZERO }),
+        Distribute::SpaceBetween => (
+            S::ZERO,
+            if n > 1 {
+                free.max(S::ZERO) / count(n - 1)
+            } else {
+                S::ZERO
+            },
+        ),
         Distribute::SpaceAround => {
             let each = free.max(S::ZERO) / count(n);
             (each / two(), each)
@@ -129,7 +142,12 @@ pub(crate) fn distribute_main<S: Scalar>(ctx: &Ctx<S>, items: &mut [Item<S>], li
             }
             free = S::ZERO;
         }
-        let d = resolve_distribution(justify_keyword(ctx.justify), free, ctx.flow.start_is_flex_start(main), n);
+        let d = resolve_distribution(
+            justify_keyword(ctx.justify),
+            free,
+            ctx.flow.start_is_flex_start(main),
+            n,
+        );
         let (lead, between) = distribution(d, free, n);
         let mut pos = lead;
         for it in its.iter_mut() {
@@ -164,10 +182,19 @@ pub(crate) fn align_cross<S: Scalar>(ctx: &Ctx<S>, items: &mut [Item<S>], lines:
     let start_is_flex_start = ctx.flow.start_is_flex_start(cross);
     let n_lines = lines.len();
     // 16. Lines.
-    let gaps = if n_lines > 1 { ctx.gap_cross * count(n_lines - 1) } else { S::ZERO };
+    let gaps = if n_lines > 1 {
+        ctx.gap_cross * count(n_lines - 1)
+    } else {
+        S::ZERO
+    };
     let used = lines.iter().fold(gaps, |acc, l| acc + l.cross);
     let free = inner_cross - used;
-    let d = resolve_distribution(align_content_keyword(ctx.align_content), free, start_is_flex_start, n_lines);
+    let d = resolve_distribution(
+        align_content_keyword(ctx.align_content),
+        free,
+        start_is_flex_start,
+        n_lines,
+    );
     let (lead, between) = distribution(d, free, n_lines);
     let mut pos = lead;
     for line in lines.iter_mut() {
@@ -214,7 +241,11 @@ pub(crate) fn align_cross<S: Scalar>(ctx: &Ctx<S>, items: &mut [Item<S>], lines:
                             // a single-line rtl container, where it packs at the physical end.
                             let physical_end = ctx.flow.axis_rtl(cross) && !ctx.flow.multiline;
                             let physical = if physical_end { free } else { S::ZERO };
-                            if ctx.flow.cross_reversed { free - physical } else { physical }
+                            if ctx.flow.cross_reversed {
+                                free - physical
+                            } else {
+                                physical
+                            }
                         } else {
                             S::ZERO
                         }
@@ -233,8 +264,16 @@ fn item_origin<S: Scalar>(ctx: &Ctx<S>, it: &Item<S>, line: &Line<S>, inner_main
     let (cs, _) = along(&it.margin, cross, ctx.flow.cross_reversed);
     let lm = it.offset_main + ms;
     let lc = line.offset_cross + it.offset_cross + cs;
-    let pm = if ctx.flow.main_reversed { inner_main - lm - it.target } else { lm };
-    let pc = if ctx.flow.cross_reversed { inner_cross - lc - it.cross } else { lc };
+    let pm = if ctx.flow.main_reversed {
+        inner_main - lm - it.target
+    } else {
+        lm
+    };
+    let pc = if ctx.flow.cross_reversed {
+        inner_cross - lc - it.cross
+    } else {
+        lc
+    };
     let (pb_main_start, _) = ctx.pb.along(main);
     let (pb_cross_start, _) = ctx.pb.along(cross);
     let mut p = Point::ZERO;
@@ -307,7 +346,11 @@ where
     N: LayoutNode<Scalar = S>,
     M: Measure<N>,
 {
-    let Some(line) = (if ctx.flow.wrap_reverse { lines.last() } else { lines.first() }) else {
+    let Some(line) = (if ctx.flow.wrap_reverse {
+        lines.last()
+    } else {
+        lines.first()
+    }) else {
         return Ok(Opt::NONE);
     };
     if line.len() == 0 {
@@ -343,7 +386,11 @@ where
     };
     let mut probe = it;
     probe.baseline = baseline;
-    let height = if ctx.cross() == Axis::Vertical { it.cross } else { it.target };
+    let height = if ctx.cross() == Axis::Vertical {
+        it.cross
+    } else {
+        it.target
+    };
     Ok(Opt::some(origin.y + inner_baseline(&probe, height)))
 }
 
@@ -353,7 +400,13 @@ where
 fn static_edge(flow: &Flow, axis: Axis, kind: StaticAlign, item_rtl: bool) -> u8 {
     let flex = |start: bool| if start ^ flow.reversed(axis) { 0 } else { 2 };
     let ws = |start: bool| if start ^ flow.axis_rtl(axis) { 0 } else { 2 };
-    let own = |start: bool| if start ^ (axis == Axis::Horizontal && item_rtl) { 0 } else { 2 };
+    let own = |start: bool| {
+        if start ^ (axis == Axis::Horizontal && item_rtl) {
+            0
+        } else {
+            2
+        }
+    };
     match kind {
         StaticAlign::FlexStart => flex(true),
         StaticAlign::FlexEnd => flex(false),
@@ -447,7 +500,12 @@ where
         let pb = padding_border(&cs, cb_opt.width).sums();
         let margin = cs.resolve_edges(slot::MARGIN, cb_opt.width);
         let ml = cs.margin();
-        let auto = Edges { left: ml.left.is_auto(), right: ml.right.is_auto(), top: ml.top.is_auto(), bottom: ml.bottom.is_auto() };
+        let auto = Edges {
+            left: ml.left.is_auto(),
+            right: ml.right.is_auto(),
+            top: ml.top.is_auto(),
+            bottom: ml.bottom.is_auto(),
+        };
         let inset_len = cs.inset();
         let inset = Edges {
             left: inset_len.left.resolve(cb_opt.width),
@@ -530,12 +588,18 @@ where
             if sized.height.is_none()
                 && let Some(w) = decided.width.get()
             {
-                decided.height = Opt::some(clamp(Axis::Vertical, transfer_bb(content_box, pb, Axis::Horizontal, w, r)));
+                decided.height = Opt::some(clamp(
+                    Axis::Vertical,
+                    transfer_bb(content_box, pb, Axis::Horizontal, w, r),
+                ));
             } else if sized.width.is_none()
                 && !from_insets.width
                 && let Some(h) = decided.height.get()
             {
-                decided.width = Opt::some(clamp(Axis::Horizontal, transfer_bb(content_box, pb, Axis::Vertical, h, r)));
+                decided.width = Opt::some(clamp(
+                    Axis::Horizontal,
+                    transfer_bb(content_box, pb, Axis::Vertical, h, r),
+                ));
             }
         }
         let used: Size<S> = if decided.width.is_some() && decided.height.is_some() {
@@ -560,9 +624,14 @@ where
             }
             used
         };
-        let final_input = Input::new(used.map(Opt::some), used.map(Available::Definite), cb_opt, ctx.flow.direction)
-            .content_size()
-            .finalize();
+        let final_input = Input::new(
+            used.map(Opt::some),
+            used.map(Available::Definite),
+            cb_opt,
+            ctx.flow.direction,
+        )
+        .content_size()
+        .finalize();
         pass.visit_path(node, path, final_input)?;
 
         // Position per axis.
@@ -576,7 +645,8 @@ where
             let pos = match (s.get(), e.get()) {
                 (Some(s), Some(e)) => {
                     // Auto margins absorb the remaining space between definite insets.
-                    let free = cb.get(axis) - s - e - extent - if aa { S::ZERO } else { ma } - if ab { S::ZERO } else { mb };
+                    let free =
+                        cb.get(axis) - s - e - extent - if aa { S::ZERO } else { ma } - if ab { S::ZERO } else { mb };
                     if aa && ab {
                         ma = free / two();
                         mb = free / two();

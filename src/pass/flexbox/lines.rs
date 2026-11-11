@@ -1,7 +1,7 @@
 //! Flex lines: breaking (§9.3), resolving flexible lengths (§9.7) and cross sizes (§9.4).
 
-use super::items::{ask, cross_constraint, resolve_auto_min, Item};
-use super::{count, transfer_bb, Ctx, F_AUTO_MIN, F_BASELINE, F_CONTENT_BOX, F_FROZEN, F_SCROLL, F_STRETCHED};
+use super::items::{Item, ask, cross_constraint, resolve_auto_min};
+use super::{Ctx, F_AUTO_MIN, F_BASELINE, F_CONTENT_BOX, F_FROZEN, F_SCROLL, F_STRETCHED, count, transfer_bb};
 use crate::geometry::{Axis, Size};
 use crate::measure::{Available, Measure};
 use crate::pass::{Cancelled, Pass};
@@ -46,7 +46,14 @@ pub(crate) fn collect<S: Scalar>(ctx: &Ctx<S>, items: &[Item<S>], lines: &mut Ve
     if n == 0 {
         return;
     }
-    let line = |start: u32, end: u32| Line { start, end, cross: S::ZERO, max_ascent: S::ZERO, max_descent: S::ZERO, offset_cross: S::ZERO };
+    let line = |start: u32, end: u32| Line {
+        start,
+        end,
+        cross: S::ZERO,
+        max_ascent: S::ZERO,
+        max_descent: S::ZERO,
+        offset_cross: S::ZERO,
+    };
     if !ctx.flow.multiline {
         lines.push(line(0, n as u32));
         return;
@@ -74,7 +81,9 @@ pub(crate) fn line_length<S: Scalar>(ctx: &Ctx<S>, items: &[Item<S>]) -> S {
     let main = ctx.main();
     let n = items.len();
     let gaps = if n > 1 { ctx.gap_main * count(n - 1) } else { S::ZERO };
-    items.iter().fold(gaps, |acc, it| acc + it.hypothetical + it.margin.sum(main))
+    items
+        .iter()
+        .fold(gaps, |acc, it| acc + it.hypothetical + it.margin.sum(main))
 }
 
 /// §9.7: resolves the flexible lengths of one line, writing each item's `target`.
@@ -104,7 +113,9 @@ where
     let gaps = if n > 1 { ctx.gap_main * count(n - 1) } else { S::ZERO };
 
     // 1. Used flex factor.
-    let hypothetical_sum = items.iter().fold(S::ZERO, |acc, it| acc + it.hypothetical + it.margin.sum(main));
+    let hypothetical_sum = items
+        .iter()
+        .fold(S::ZERO, |acc, it| acc + it.hypothetical + it.margin.sum(main));
     let used = gaps + hypothetical_sum;
     let growing = used < inner_main;
     let shrinking = used > inner_main;
@@ -162,10 +173,17 @@ where
                 }
             } else {
                 let scaled = |it: &Item<S>| it.shrink * it.inner_base(main);
-                let ssum = items.iter().filter(|it| !it.has(F_FROZEN)).fold(S::ZERO, |acc, it| acc + scaled(it));
+                let ssum = items
+                    .iter()
+                    .filter(|it| !it.has(F_FROZEN))
+                    .fold(S::ZERO, |acc, it| acc + scaled(it));
                 let rem = remaining.abs();
                 for it in items.iter_mut().filter(|it| !it.has(F_FROZEN)) {
-                    let share = if ssum > S::ZERO { rem.mul_div(scaled(it), ssum) } else { S::ZERO };
+                    let share = if ssum > S::ZERO {
+                        rem.mul_div(scaled(it), ssum)
+                    } else {
+                        S::ZERO
+                    };
                     it.target = it.base - share;
                 }
             }
@@ -173,7 +191,10 @@ where
         // d. Min/max violations, flooring the content box at zero.
         let mut total_violation = S::ZERO;
         for it in items.iter_mut().filter(|it| !it.has(F_FROZEN)) {
-            let clamped = it.target.clamp_opt(Opt::some(it.min_main), it.max.get(main)).max(it.pb.get(main));
+            let clamped = it
+                .target
+                .clamp_opt(Opt::some(it.min_main), it.max.get(main))
+                .max(it.pb.get(main));
             let v = clamped - it.target;
             it.violation = if v > S::ZERO {
                 1
@@ -298,7 +319,11 @@ where
             continue;
         }
         let (max_ascent, max_descent) = baseline_extents(ctx, &items[line.range()]);
-        let mut largest = if max_ascent + max_descent > S::ZERO { max_ascent + max_descent } else { S::ZERO };
+        let mut largest = if max_ascent + max_descent > S::ZERO {
+            max_ascent + max_descent
+        } else {
+            S::ZERO
+        };
         for it in &items[line.range()] {
             if !it.has(F_BASELINE) {
                 largest = largest.max(it.cross + it.margin.sum(cross));
@@ -309,14 +334,22 @@ where
         line.max_descent = max_descent;
     }
     if !ctx.flow.multiline && !lines.is_empty() && !single_line_definite {
-        lines[0].cross = lines[0].cross.clamp_opt(ctx.min_inner.get(cross), ctx.max_inner.get(cross));
+        lines[0].cross = lines[0]
+            .cross
+            .clamp_opt(ctx.min_inner.get(cross), ctx.max_inner.get(cross));
     }
 
     // 9. `align-content: stretch`.
     if matches!(ctx.align_content, AlignContent::Normal | AlignContent::Stretch) && !lines.is_empty() {
-        let target = container_cross.or(ctx.min_inner.get(cross)).map(|v| v.clamp_opt(ctx.min_inner.get(cross), ctx.max_inner.get(cross)));
+        let target = container_cross
+            .or(ctx.min_inner.get(cross))
+            .map(|v| v.clamp_opt(ctx.min_inner.get(cross), ctx.max_inner.get(cross)));
         if let Some(t) = target.get() {
-            let gaps = if lines.len() > 1 { ctx.gap_cross * count(lines.len() - 1) } else { S::ZERO };
+            let gaps = if lines.len() > 1 {
+                ctx.gap_cross * count(lines.len() - 1)
+            } else {
+                S::ZERO
+            };
             let total = lines.iter().fold(gaps, |acc, l| acc + l.cross);
             if total < t {
                 let add = (t - total) / count(lines.len());
@@ -343,7 +376,11 @@ where
     let inner_cross = match container_cross.get() {
         Some(v) => v,
         None => {
-            let gaps = if lines.len() > 1 { ctx.gap_cross * count(lines.len() - 1) } else { S::ZERO };
+            let gaps = if lines.len() > 1 {
+                ctx.gap_cross * count(lines.len() - 1)
+            } else {
+                S::ZERO
+            };
             let total = lines.iter().fold(gaps, |acc, l| acc + l.cross);
             total.clamp_opt(ctx.min_inner.get(cross), ctx.max_inner.get(cross))
         }

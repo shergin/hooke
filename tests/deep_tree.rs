@@ -96,23 +96,33 @@ enum Chain {
     AlternatingPadded,
 }
 
-const CHAINS: [Chain; 5] = [Chain::Rows, Chain::Columns, Chain::Alternating, Chain::AlternatingFlexStart, Chain::AlternatingPadded];
+const CHAINS: [Chain; 5] = [
+    Chain::Rows,
+    Chain::Columns,
+    Chain::Alternating,
+    Chain::AlternatingFlexStart,
+    Chain::AlternatingPadded,
+];
 const DEPTHS: [usize; 4] = [10, 25, 50, 100];
 
 impl Chain {
     fn style(self, level: usize) -> Style {
-        let alternate = if level.is_multiple_of(2) { FlexDirection::Row } else { FlexDirection::Column };
+        let alternate = if level.is_multiple_of(2) {
+            FlexDirection::Row
+        } else {
+            FlexDirection::Column
+        };
         match self {
             Chain::Rows => Style::web(),
             Chain::Columns => Style::web().with_flex_direction(FlexDirection::Column),
             Chain::Alternating => Style::web().with_flex_direction(alternate),
-            Chain::AlternatingFlexStart => {
-                Style::web().with_flex_direction(alternate).with_align_items(AlignItems::FlexStart)
-            }
+            Chain::AlternatingFlexStart => Style::web()
+                .with_flex_direction(alternate)
+                .with_align_items(AlignItems::FlexStart),
             // Every level adds one pixel on each side, so no two levels have the same size.
-            Chain::AlternatingPadded => {
-                Style::web().with_flex_direction(alternate).with_padding(Edges::all(Length::Px(1.0)))
-            }
+            Chain::AlternatingPadded => Style::web()
+                .with_flex_direction(alternate)
+                .with_padding(Edges::all(Length::Px(1.0))),
         }
     }
 }
@@ -136,7 +146,10 @@ fn max_content() -> RootConstraints<f32> {
 }
 
 fn constraint_sets() -> [(&'static str, RootConstraints<f32>); 2] {
-    [("viewport", RootConstraints::viewport(800.0, 600.0)), ("max-content", max_content())]
+    [
+        ("viewport", RootConstraints::viewport(800.0, 600.0)),
+        ("max-content", max_content()),
+    ]
 }
 
 /// One pass with a fresh scratch: the root's size, the stats and the measurer calls.
@@ -167,22 +180,34 @@ fn deep_chains_measure_the_leaf_a_bounded_number_of_times_and_visit_linearly() {
                     "{kind:?} {label} depth {depth}: cold calls {cold_calls}, visited {}, stats {cold:?}, size {size:?}",
                     cold.visited
                 );
-                assert!(cold_calls <= MAX_CALLS, "{kind:?} {label} depth {depth}: {cold_calls} measurer calls");
-                assert!(cold.visited <= visit_bound, "{kind:?} {label} depth {depth}: visited {}", cold.visited);
+                assert!(
+                    cold_calls <= MAX_CALLS,
+                    "{kind:?} {label} depth {depth}: {cold_calls} measurer calls"
+                );
+                assert!(
+                    cold.visited <= visit_bound,
+                    "{kind:?} {label} depth {depth}: visited {}",
+                    cold.visited
+                );
                 assert_eq!(cold.nodes_cloned, 0);
 
                 // The same tree again, no edits: everything comes from the memos.
                 let (again_size, warm, warm_calls) = pass(&mut root, constraints);
                 eprintln!("{kind:?} {label} depth {depth}: warm calls {warm_calls}, stats {warm:?}");
                 assert_eq!(again_size, size);
-                assert_eq!(warm_calls, 0, "{kind:?} {label} depth {depth}: an unchanged tree is not re-measured");
+                assert_eq!(
+                    warm_calls, 0,
+                    "{kind:?} {label} depth {depth}: an unchanged tree is not re-measured"
+                );
                 assert_eq!(warm.nodes_cloned, 0);
 
                 // Edit the leaf through a host path copy.
                 let path = vec![0; depth];
                 {
                     let leaf = node_at_mut(&mut root, &path);
-                    leaf.kind = Kind::Text { intrinsic: Size::new(70.0, 30.0) };
+                    leaf.kind = Kind::Text {
+                        intrinsic: Size::new(70.0, 30.0),
+                    };
                     leaf.layout.set_content_id(fresh_id());
                 }
                 let (_, edited, edit_calls) = pass(&mut root, constraints);
@@ -190,18 +215,34 @@ fn deep_chains_measure_the_leaf_a_bounded_number_of_times_and_visit_linearly() {
                     "{kind:?} {label} depth {depth}: edit calls {edit_calls}, visited {}, stats {edited:?}",
                     edited.visited
                 );
-                assert!(edit_calls <= MAX_CALLS, "{kind:?} {label} depth {depth}: {edit_calls} calls after the edit");
-                assert!(edited.visited <= visit_bound, "{kind:?} {label} depth {depth}: visited {}", edited.visited);
-                assert_eq!(edited.nodes_cloned, 0, "the host's path copy already made the path unique");
+                assert!(
+                    edit_calls <= MAX_CALLS,
+                    "{kind:?} {label} depth {depth}: {edit_calls} calls after the edit"
+                );
+                assert!(
+                    edited.visited <= visit_bound,
+                    "{kind:?} {label} depth {depth}: visited {}",
+                    edited.visited
+                );
+                assert_eq!(
+                    edited.nodes_cloned, 0,
+                    "the host's path copy already made the path unique"
+                );
 
                 // Incremental equals cold.
                 let mut fresh = chain(kind, depth);
                 {
                     let leaf = node_at_mut(&mut fresh, &path);
-                    leaf.kind = Kind::Text { intrinsic: Size::new(70.0, 30.0) };
+                    leaf.kind = Kind::Text {
+                        intrinsic: Size::new(70.0, 30.0),
+                    };
                 }
                 pass(&mut fresh, constraints);
-                assert_eq!(frames(&root), frames(&fresh), "{kind:?} {label} depth {depth}: incremental equals cold");
+                assert_eq!(
+                    frames(&root),
+                    frames(&fresh),
+                    "{kind:?} {label} depth {depth}: incremental equals cold"
+                );
             }
         }
     }
@@ -212,7 +253,13 @@ fn deep_chains_measure_the_leaf_a_bounded_number_of_times_and_visit_linearly() {
 // ---------------------------------------------------------------------------------------------
 
 /// A random tree of views and texts with mixed styles, remembering the path to every leaf.
-fn random_tree(rng: &mut Rng, depth: u32, tag: &mut u32, paths: &mut Vec<Vec<usize>>, path: &mut Vec<usize>) -> Handle<Node> {
+fn random_tree(
+    rng: &mut Rng,
+    depth: u32,
+    tag: &mut u32,
+    paths: &mut Vec<Vec<usize>>,
+    path: &mut Vec<usize>,
+) -> Handle<Node> {
     *tag += 1;
     let t = *tag;
     let mut style = Style::web()
@@ -228,7 +275,12 @@ fn random_tree(rng: &mut Rng, depth: u32, tag: &mut u32, paths: &mut Vec<Vec<usi
             JustifyContent::SpaceBetween,
             JustifyContent::FlexEnd,
         ]))
-        .with_align_items(rng.pick(&[AlignItems::Stretch, AlignItems::FlexStart, AlignItems::Center, AlignItems::FlexEnd]))
+        .with_align_items(rng.pick(&[
+            AlignItems::Stretch,
+            AlignItems::FlexStart,
+            AlignItems::Center,
+            AlignItems::FlexEnd,
+        ]))
         .with_padding(Edges::all(Length::Px(rng.below(6) as f32)))
         .with_margin(Edges::all(Length::Px(rng.below(4) as f32)))
         .with_gap(Length::Px(rng.below(5) as f32), Length::Px(rng.below(5) as f32))
@@ -276,7 +328,11 @@ fn big_random_tree(seed: u64) -> (Handle<Node>, Vec<Vec<usize>>) {
 }
 
 /// One pass over `root` with `scratch`, counting the allocations it makes.
-fn counted_pass(root: &mut Handle<Node>, scratch: &mut Scratch<f32>, constraints: RootConstraints<f32>) -> (Stats, u32, usize) {
+fn counted_pass(
+    root: &mut Handle<Node>,
+    scratch: &mut Scratch<f32>,
+    constraints: RootConstraints<f32>,
+) -> (Stats, u32, usize) {
     let mut shaper = Shaper { calls: 0 };
     let mut cx = LayoutCx::new(scratch);
     let (result, allocations) = count_allocations(|| hooke::layout(root, constraints, &mut cx, &mut shaper));
@@ -286,7 +342,9 @@ fn counted_pass(root: &mut Handle<Node>, scratch: &mut Scratch<f32>, constraints
 
 fn edit_leaf(root: &mut Handle<Node>, path: &[usize], width: f32) {
     let leaf = node_at_mut(root, path);
-    leaf.kind = Kind::Text { intrinsic: Size::new(width, 13.0) };
+    leaf.kind = Kind::Text {
+        intrinsic: Size::new(width, 13.0),
+    };
     leaf.layout.set_content_id(fresh_id());
 }
 
@@ -301,8 +359,15 @@ fn a_warmed_up_pass_allocates_nothing() {
             let mut scratch = Scratch::new();
             let (_, cold_calls, warmup) = counted_pass(&mut root, &mut scratch, constraints);
             let (stats, calls, unchanged) = counted_pass(&mut root, &mut scratch, constraints);
-            eprintln!("seed {seed} {label} ({nodes} nodes): warm-up {warmup} allocations and {cold_calls} calls, unchanged {unchanged}, calls {calls}, {stats:?}");
-            assert_eq!(unchanged, 0, "seed {seed} {label}: an unchanged tree laid out again allocated ({:?})", allocation_sizes());
+            eprintln!(
+                "seed {seed} {label} ({nodes} nodes): warm-up {warmup} allocations and {cold_calls} calls, unchanged {unchanged}, calls {calls}, {stats:?}"
+            );
+            assert_eq!(
+                unchanged,
+                0,
+                "seed {seed} {label}: an unchanged tree laid out again allocated ({:?})",
+                allocation_sizes()
+            );
             assert_eq!(calls, 0);
 
             // A leaf edited through the host's path copy, outside the counted window.

@@ -44,7 +44,12 @@ fn align(a: scene::Align) -> t::AlignItems {
 }
 
 fn rect<T, U>(e: scene::Edges<T>, f: impl Fn(T) -> U) -> taffy::geometry::Rect<U> {
-    taffy::geometry::Rect { left: f(e.left), right: f(e.right), top: f(e.top), bottom: f(e.bottom) }
+    taffy::geometry::Rect {
+        left: f(e.left),
+        right: f(e.right),
+        top: f(e.top),
+        bottom: f(e.bottom),
+    }
 }
 
 /// Maps the scene's style onto Taffy's, with `box-sizing: border-box`.
@@ -92,9 +97,18 @@ pub fn to_taffy_style(s: &scene::Style) -> t::Style {
         flex_grow: s.grow,
         flex_shrink: s.shrink,
         flex_basis: dim(s.basis),
-        size: taffy::geometry::Size { width: dim(s.width), height: dim(s.height) },
-        min_size: taffy::geometry::Size { width: lpa(s.min_width), height: lpa(s.min_height) },
-        max_size: taffy::geometry::Size { width: lpa(s.max_width), height: lpa(s.max_height) },
+        size: taffy::geometry::Size {
+            width: dim(s.width),
+            height: dim(s.height),
+        },
+        min_size: taffy::geometry::Size {
+            width: lpa(s.min_width),
+            height: lpa(s.min_height),
+        },
+        max_size: taffy::geometry::Size {
+            width: lpa(s.max_width),
+            height: lpa(s.max_height),
+        },
         margin: rect(s.margin, lpa),
         padding: rect(s.padding, lp),
         border: rect(s.border, t::LengthPercentage::length),
@@ -112,7 +126,10 @@ fn available(v: Viewport) -> taffy::geometry::Size<AvailableSpace> {
         Avail::Definite(v) => AvailableSpace::Definite(v),
         Avail::MaxContent => AvailableSpace::MaxContent,
     };
-    taffy::geometry::Size { width: a(v.width), height: a(v.height) }
+    taffy::geometry::Size {
+        width: a(v.width),
+        height: a(v.height),
+    }
 }
 
 fn text_avail(a: AvailableSpace) -> TextAvail {
@@ -138,18 +155,23 @@ impl TaffyEngine {
     fn compute(tree: &mut TaffyTree<String>, root: taffy::NodeId, space: taffy::geometry::Size<AvailableSpace>) -> u64 {
         let mut calls = 0u64;
         tree.compute_layout_with_measure(root, space, |input, _id, ctx, style| {
-            taffy::compute_leaf_layout(input, style, |_, _| 0.0, |known, avail| match ctx.as_deref() {
-                Some(text) => {
-                    calls += 1;
-                    let [w, h] = measure_text(
-                        text,
-                        [known.width, known.height],
-                        [text_avail(avail.width), text_avail(avail.height)],
-                    );
-                    taffy::geometry::Size { width: w, height: h }
-                }
-                None => taffy::geometry::Size::ZERO,
-            })
+            taffy::compute_leaf_layout(
+                input,
+                style,
+                |_, _| 0.0,
+                |known, avail| match ctx.as_deref() {
+                    Some(text) => {
+                        calls += 1;
+                        let [w, h] = measure_text(
+                            text,
+                            [known.width, known.height],
+                            [text_avail(avail.width), text_avail(avail.height)],
+                        );
+                        taffy::geometry::Size { width: w, height: h }
+                    }
+                    None => taffy::geometry::Size::ZERO,
+                },
+            )
         })
         .expect("taffy layout");
         calls
@@ -178,7 +200,10 @@ impl TaffyEngine {
     /// counterpart of hooke's `candidates`. Sequential: `TaffyTree` 0.15 is neither `Send` nor
     /// `Sync` (its compact lengths hold a raw pointer), so candidates cannot go to other threads.
     pub fn candidates(&self, edits: &[(NodeId, String)]) -> Vec<TaffyTree<String>> {
-        edits.iter().map(|(node, text)| self.clone_edit_layout(*node, text)).collect()
+        edits
+            .iter()
+            .map(|(node, text)| self.clone_edit_layout(*node, text))
+            .collect()
     }
 
     /// Frames of a tree cloned from this one, in scene node order.
@@ -201,13 +226,30 @@ impl TaffyEngine {
             *next += 1;
             let l = tree.layout(id).expect("node");
             let (ax, ay) = (x + l.location.x, y + l.location.y);
-            out[i] = if hidden[i] { Frame::default() } else { Frame { x: ax, y: ay, width: l.size.width, height: l.size.height } };
+            out[i] = if hidden[i] {
+                Frame::default()
+            } else {
+                Frame {
+                    x: ax,
+                    y: ay,
+                    width: l.size.width,
+                    height: l.size.height,
+                }
+            };
             for c in tree.children(id).expect("node") {
                 walk(tree, c, ax, ay, next, hidden, out);
             }
         }
         let mut next = 0;
-        walk(tree, self.ids[0], -root_loc.x, -root_loc.y, &mut next, &self.hidden, out);
+        walk(
+            tree,
+            self.ids[0],
+            -root_loc.x,
+            -root_loc.y,
+            &mut next,
+            &self.hidden,
+            out,
+        );
     }
 }
 
@@ -238,7 +280,13 @@ impl Engine for TaffyEngine {
                 hidden[c] = h;
             }
         }
-        TaffyEngine { tree, ids, hidden, available: available(scene.viewport), calls: 0 }
+        TaffyEngine {
+            tree,
+            ids,
+            hidden,
+            available: available(scene.viewport),
+            calls: 0,
+        }
     }
 
     fn layout(&mut self) {

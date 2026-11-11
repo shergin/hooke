@@ -57,7 +57,8 @@ impl ColdReset for CephalEngine {}
 impl ColdReset for hooke_bench::engines::yoga::YogaEngine {}
 
 fn quick() -> bool {
-    std::env::var("HOOKE_BENCH_QUICK").is_ok_and(|v| v != "0" && !v.is_empty()) || std::env::args().any(|a| a == "--quick")
+    std::env::var("HOOKE_BENCH_QUICK").is_ok_and(|v| v != "0" && !v.is_empty())
+        || std::env::args().any(|a| a == "--quick")
 }
 
 /// Sample size, warm-up and measurement time by node count.
@@ -138,8 +139,15 @@ fn bench_resize<E: Engine>(group: &mut BenchmarkGroup<'_, WallTime>, w: &Workloa
 
 fn bench_candidates(group: &mut BenchmarkGroup<'_, WallTime>, w: &Workload, rows: &[Row], g: &Group) {
     let edit = w.edit.as_ref().expect("candidate workloads have text");
-    let edits: Vec<(usize, String)> =
-        workloads::spread_leaves(&w.scene, 8).into_iter().map(|n| (n, format!("{}\u{200B}HHHHH", w.scene.nodes[n].text.as_deref().unwrap_or("")))).collect();
+    let edits: Vec<(usize, String)> = workloads::spread_leaves(&w.scene, 8)
+        .into_iter()
+        .map(|n| {
+            (
+                n,
+                format!("{}\u{200B}HHHHH", w.scene.nodes[n].text.as_deref().unwrap_or("")),
+            )
+        })
+        .collect();
     if allowed::<HookeEngine>(rows, g, w.size) {
         let mut h = HookeEngine::build(&w.scene);
         h.layout();
@@ -188,7 +196,10 @@ fn benches(c: &mut Criterion) {
         let sizes = if quick() { &sizes[..2] } else { sizes };
         for &(size, _) in sizes {
             let w = workloads::make(g.workload, size);
-            let rows = gates.entry((g.workload, size)).or_insert_with(|| gate::gate(&w)).clone();
+            let rows = gates
+                .entry((g.workload, size))
+                .or_insert_with(|| gate::gate(&w))
+                .clone();
             group.throughput(Throughput::Elements(w.scene.len() as u64));
             configure(&mut group, w.scene.len());
             if g.family == "candidates" {

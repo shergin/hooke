@@ -11,11 +11,11 @@
 
 mod keywords;
 
+pub(crate) use keywords::Unit;
 pub use keywords::{
     AlignContent, AlignItems, BoxSizing, Direction, Display, FlexDirection, FlexWrap, JustifyContent, Overflow,
     Position,
 };
-pub(crate) use keywords::Unit;
 
 use crate::geometry::{Edges, Size};
 use crate::scalar::{Opt, Scalar};
@@ -297,9 +297,16 @@ impl<S: Scalar> Style<S> {
         if (0..slot::COUNT).any(|i| matches!(self.tag(i), Unit::Percent | Unit::Stretch)) {
             d |= derived::PERCENT;
         }
-        if [slot::WIDTH, slot::HEIGHT, slot::MIN_WIDTH, slot::MIN_HEIGHT, slot::MAX_WIDTH, slot::MAX_HEIGHT]
-            .into_iter()
-            .any(|i| !matches!(self.tag(i), Unit::Auto | Unit::None))
+        if [
+            slot::WIDTH,
+            slot::HEIGHT,
+            slot::MIN_WIDTH,
+            slot::MIN_HEIGHT,
+            slot::MAX_WIDTH,
+            slot::MAX_HEIGHT,
+        ]
+        .into_iter()
+        .any(|i| !matches!(self.tag(i), Unit::Auto | Unit::None))
         {
             d |= derived::SIZED;
         }
@@ -521,7 +528,10 @@ impl<S: Scalar> Style<S> {
     /// `width` and `height` together.
     #[inline]
     pub fn size(&self) -> Size<Length<S>> {
-        Size { width: self.length(slot::WIDTH), height: self.length(slot::HEIGHT) }
+        Size {
+            width: self.length(slot::WIDTH),
+            height: self.length(slot::HEIGHT),
+        }
     }
     /// Returns the style with `width` and `height` set.
     #[inline]
@@ -799,7 +809,12 @@ mod tests {
         let s: Style = Style::web()
             .with_size(Length::Px(10.0), Length::Percent(0.5))
             .with_align_self(Some(AlignItems::Center))
-            .with_margin(Edges { left: Length::Auto, right: Length::Px(1.0), top: Length::Px(2.0), bottom: Length::Percent(0.1) })
+            .with_margin(Edges {
+                left: Length::Auto,
+                right: Length::Px(1.0),
+                top: Length::Px(2.0),
+                bottom: Length::Percent(0.1),
+            })
             .with_gap(Length::Px(3.0), Length::Px(4.0));
         assert_eq!(s.width(), Length::Px(10.0));
         assert_eq!(s.height(), Length::Percent(0.5));
@@ -817,9 +832,16 @@ mod tests {
         let a: Style = Style::web();
         assert_eq!(a.fingerprint(), Style::<f32>::web().fingerprint());
         assert_ne!(a.fingerprint(), a.with_width(Length::Px(1.0)).fingerprint());
-        assert_ne!(a.fingerprint(), a.with_width(Length::Percent(0.0)).fingerprint(), "tag change alone must change the key");
+        assert_ne!(
+            a.fingerprint(),
+            a.with_width(Length::Percent(0.0)).fingerprint(),
+            "tag change alone must change the key"
+        );
         assert_ne!(a.fingerprint(), a.with_order(1).fingerprint());
-        assert_ne!(a.fingerprint(), a.with_align_self(Some(AlignItems::Normal)).fingerprint());
+        assert_ne!(
+            a.fingerprint(),
+            a.with_align_self(Some(AlignItems::Normal)).fingerprint()
+        );
         assert_ne!(a.fingerprint(), a.with_border(Edges::all(1.0)).fingerprint());
     }
 }

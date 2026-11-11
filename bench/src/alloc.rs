@@ -75,7 +75,11 @@ pub struct Snapshot {
 impl Snapshot {
     /// The change from `before` to `self`.
     pub fn since(self, before: Snapshot) -> Snapshot {
-        Snapshot { current: self.current - before.current, count: self.count - before.count, total: self.total - before.total }
+        Snapshot {
+            current: self.current - before.current,
+            count: self.count - before.count,
+            total: self.total - before.total,
+        }
     }
 }
 

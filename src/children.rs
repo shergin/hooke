@@ -9,10 +9,10 @@
 //! It dereferences to `[Slot<N>]`, so reading is ordinary slice code: `children.len()`,
 //! `children.iter()`, `&children[i]`. Writing is explicit.
 
+use crate::Handle;
 use crate::geometry::Point;
 use crate::scalar::Scalar;
 use crate::tree::LayoutNode;
-use crate::Handle;
 use core::fmt;
 use core::ops::Deref;
 
@@ -38,13 +38,19 @@ impl<N: LayoutNode> Slot<N> {
 impl<N: LayoutNode> Clone for Slot<N> {
     #[inline]
     fn clone(&self) -> Self {
-        Slot { node: self.node.clone(), offset: self.offset }
+        Slot {
+            node: self.node.clone(),
+            offset: self.offset,
+        }
     }
 }
 
 impl<N: LayoutNode> fmt::Debug for Slot<N> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Slot").field("offset", &self.offset).field("size", &self.node.parts().state.size()).finish()
+        f.debug_struct("Slot")
+            .field("offset", &self.offset)
+            .field("size", &self.node.parts().state.size())
+            .finish()
     }
 }
 
@@ -58,7 +64,10 @@ impl<N: LayoutNode> Children<N> {
     /// No children, and no allocation.
     #[inline]
     pub const fn empty() -> Self {
-        Children { list: None, touched: false }
+        Children {
+            list: None,
+            touched: false,
+        }
     }
 
     /// Builds a list from child handles in one allocation when the iterator knows its length.
@@ -126,7 +135,10 @@ impl<N: LayoutNode> Children<N> {
         let slots = self.slots();
         let before = slots[..index].iter().cloned();
         let after = slots[index..].iter().cloned();
-        let new = core::iter::once(Slot { node, offset: Point::ZERO });
+        let new = core::iter::once(Slot {
+            node,
+            offset: Point::ZERO,
+        });
         Self::from_slots(before.chain(new).chain(after))
     }
 
@@ -134,7 +146,11 @@ impl<N: LayoutNode> Children<N> {
     #[must_use]
     pub fn with_removed(&self, index: usize) -> Self {
         let slots = self.slots();
-        let it = slots.iter().enumerate().filter(|(i, _)| *i != index).map(|(_, s)| s.clone());
+        let it = slots
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| *i != index)
+            .map(|(_, s)| s.clone());
         Self::from_slots(it)
     }
 
@@ -143,7 +159,10 @@ impl<N: LayoutNode> Children<N> {
         if list.is_empty() {
             Self::empty()
         } else {
-            Children { list: Some(list), touched: true }
+            Children {
+                list: Some(list),
+                touched: true,
+            }
         }
     }
 
@@ -186,7 +205,10 @@ impl<N: LayoutNode> Default for Children<N> {
 impl<N: LayoutNode> Clone for Children<N> {
     #[inline]
     fn clone(&self) -> Self {
-        Children { list: self.list.clone(), touched: self.touched }
+        Children {
+            list: self.list.clone(),
+            touched: self.touched,
+        }
     }
 }
 
@@ -194,12 +216,20 @@ impl<N: LayoutNode> FromIterator<Handle<N>> for Children<N> {
     /// One allocation when the iterator reports an exact size; `Arc<[T]>` and `Rc<[T]>`
     /// specialise on that internally.
     fn from_iter<I: IntoIterator<Item = Handle<N>>>(iter: I) -> Self {
-        let list: Handle<[Slot<N>]> =
-            iter.into_iter().map(|node| Slot { node, offset: Point::<N::Scalar>::ZERO }).collect();
+        let list: Handle<[Slot<N>]> = iter
+            .into_iter()
+            .map(|node| Slot {
+                node,
+                offset: Point::<N::Scalar>::ZERO,
+            })
+            .collect();
         if list.is_empty() {
             Self::empty()
         } else {
-            Children { list: Some(list), touched: true }
+            Children {
+                list: Some(list),
+                touched: true,
+            }
         }
     }
 }
@@ -215,7 +245,10 @@ impl<'a, N: LayoutNode> IntoIterator for &'a Children<N> {
 
 impl<N: LayoutNode> fmt::Debug for Children<N> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Children").field("len", &self.len()).field("touched", &self.touched).finish()
+        f.debug_struct("Children")
+            .field("len", &self.len())
+            .field("touched", &self.touched)
+            .finish()
     }
 }
 

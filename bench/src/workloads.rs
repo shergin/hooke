@@ -136,16 +136,60 @@ pub fn groups() -> Vec<Group> {
         "cold_wide_wrapping",
         "cold_random",
     ];
-    let mut g: Vec<Group> = AWLY.iter().zip(COLD.iter()).map(|(w, c)| Group { family: "cold", group: c, workload: w }).collect();
-    g.push(Group { family: "cold", group: COLD[11], workload: "random" });
-    g.push(Group { family: "deep", group: "deep_chain", workload: "deep_chain" });
-    g.push(Group { family: "deep", group: "deep_branch", workload: "deep_branch" });
-    g.push(Group { family: "text", group: "text_columns", workload: "text" });
-    g.push(Group { family: "edit", group: "edit_random", workload: "random" });
-    g.push(Group { family: "edit", group: "edit_text", workload: "text" });
-    g.push(Group { family: "resize", group: "resize_random", workload: "random" });
-    g.push(Group { family: "resize", group: "resize_text", workload: "text" });
-    g.push(Group { family: "candidates", group: "candidates_text", workload: "text" });
+    let mut g: Vec<Group> = AWLY
+        .iter()
+        .zip(COLD.iter())
+        .map(|(w, c)| Group {
+            family: "cold",
+            group: c,
+            workload: w,
+        })
+        .collect();
+    g.push(Group {
+        family: "cold",
+        group: COLD[11],
+        workload: "random",
+    });
+    g.push(Group {
+        family: "deep",
+        group: "deep_chain",
+        workload: "deep_chain",
+    });
+    g.push(Group {
+        family: "deep",
+        group: "deep_branch",
+        workload: "deep_branch",
+    });
+    g.push(Group {
+        family: "text",
+        group: "text_columns",
+        workload: "text",
+    });
+    g.push(Group {
+        family: "edit",
+        group: "edit_random",
+        workload: "random",
+    });
+    g.push(Group {
+        family: "edit",
+        group: "edit_text",
+        workload: "text",
+    });
+    g.push(Group {
+        family: "resize",
+        group: "resize_random",
+        workload: "random",
+    });
+    g.push(Group {
+        family: "resize",
+        group: "resize_text",
+        workload: "text",
+    });
+    g.push(Group {
+        family: "candidates",
+        group: "candidates_text",
+        workload: "text",
+    });
     g
 }
 
@@ -158,7 +202,10 @@ pub fn workload_names() -> Vec<&'static str> {
 
 /// Builds workload `name` at size `size` (a label from [`sizes`]).
 pub fn make(name: &'static str, size: &'static str) -> Workload {
-    let (label, target) = *sizes(name).iter().find(|(l, _)| *l == size).unwrap_or_else(|| panic!("no size {size} for {name}"));
+    let (label, target) = *sizes(name)
+        .iter()
+        .find(|(l, _)| *l == size)
+        .unwrap_or_else(|| panic!("no size {size} for {name}"));
     let scene = match name {
         "random" => random_cards(target, 1),
         "text" => text_columns(target, 2),
@@ -172,18 +219,35 @@ pub fn make(name: &'static str, size: &'static str) -> Workload {
 fn finish(name: &'static str, size: &'static str, scene: Scene) -> Workload {
     let leaves: Vec<NodeId> = scene.text_leaves().collect();
     let edit = (!leaves.is_empty()).then(|| {
-        let node = leaves.iter().copied().find(|&i| i >= scene.len() / 2).unwrap_or(leaves[leaves.len() - 1]);
+        let node = leaves
+            .iter()
+            .copied()
+            .find(|&i| i >= scene.len() / 2)
+            .unwrap_or(leaves[leaves.len() - 1]);
         let before = scene.nodes[node].text.clone().unwrap_or_default();
         // Two more words where the text wraps, four more characters where it is one word.
-        let after = if before.contains('\u{200B}') { format!("{before}\u{200B}HHHHHHH\u{200B}HHH") } else { format!("{before}HHHH") };
+        let after = if before.contains('\u{200B}') {
+            format!("{before}\u{200B}HHHHHHH\u{200B}HHH")
+        } else {
+            format!("{before}HHHH")
+        };
         Edit { node, before, after }
     });
     let widen = |a: Avail| match a {
         Avail::Definite(v) => Avail::Definite(v * 1.1),
         other => other,
     };
-    let resized = Viewport { width: widen(scene.viewport.width), height: scene.viewport.height };
-    Workload { name, size, scene, edit, resized }
+    let resized = Viewport {
+        width: widen(scene.viewport.width),
+        height: scene.viewport.height,
+    };
+    Workload {
+        name,
+        size,
+        scene,
+        edit,
+        resized,
+    }
 }
 
 /// `n` text leaves spread evenly through pre-order, for the candidates workload.
@@ -205,10 +269,24 @@ impl Builder {
         Builder { nodes: Vec::new() }
     }
     fn container(&mut self, style: Style, parent: Option<NodeId>) -> NodeId {
-        self.push(Node { style, children: Vec::new(), text: None }, parent)
+        self.push(
+            Node {
+                style,
+                children: Vec::new(),
+                text: None,
+            },
+            parent,
+        )
     }
     fn text(&mut self, style: Style, text: String, parent: Option<NodeId>) -> NodeId {
-        self.push(Node { style, children: Vec::new(), text: Some(text) }, parent)
+        self.push(
+            Node {
+                style,
+                children: Vec::new(),
+                text: Some(text),
+            },
+            parent,
+        )
     }
     fn push(&mut self, node: Node, parent: Option<NodeId>) -> NodeId {
         let id = self.nodes.len();
@@ -219,13 +297,23 @@ impl Builder {
         id
     }
     fn finish(self, width: f32, height: f32) -> Scene {
-        Scene { nodes: self.nodes, viewport: Viewport { width: Avail::Definite(width), height: Avail::Definite(height) } }
+        Scene {
+            nodes: self.nodes,
+            viewport: Viewport {
+                width: Avail::Definite(width),
+                height: Avail::Definite(height),
+            },
+        }
     }
 }
 
 /// The root of every scene: `100%` of the viewport on both axes.
 fn root_style() -> Style {
-    Style { width: Dim::Percent(1.0), height: Dim::Percent(1.0), ..Style::default() }
+    Style {
+        width: Dim::Percent(1.0),
+        height: Dim::Percent(1.0),
+        ..Style::default()
+    }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -255,7 +343,18 @@ struct P {
 }
 
 fn p(w: Option<Sz>, h: Option<Sz>) -> P {
-    P { w, h, min_w: None, max_w: None, gap: 0.0, padding: 0.0, margin: 0.0, wrap: false, horizontal: false, children: Vec::new() }
+    P {
+        w,
+        h,
+        min_w: None,
+        max_w: None,
+        gap: 0.0,
+        padding: 0.0,
+        margin: 0.0,
+        wrap: false,
+        horizontal: false,
+        children: Vec::new(),
+    }
 }
 
 impl P {
@@ -329,7 +428,11 @@ fn pangui_style(n: &P, parent_is_row: bool) -> Style {
         (_, Some(Sz::Expand(w))) => (w, 0.0, Dim::Auto),
         _ => (0.0, 0.0, Dim::Auto),
     };
-    let mut min_width = if parent_is_row && matches!(n.min_w, Some(Sz::Expand(_))) { Dim::Auto } else { dim(n.min_w) };
+    let mut min_width = if parent_is_row && matches!(n.min_w, Some(Sz::Expand(_))) {
+        Dim::Auto
+    } else {
+        dim(n.min_w)
+    };
     let mut min_height = Dim::Auto;
     if expands {
         if parent_is_row && n.min_w.is_none() {
@@ -340,7 +443,11 @@ fn pangui_style(n: &P, parent_is_row: bool) -> Style {
         }
     }
     Style {
-        direction: if n.horizontal { FlexDirection::Row } else { FlexDirection::Column },
+        direction: if n.horizontal {
+            FlexDirection::Row
+        } else {
+            FlexDirection::Column
+        },
         wrap: if n.wrap { FlexWrap::Wrap } else { FlexWrap::NoWrap },
         width: dim(n.w),
         height: dim(n.h),
@@ -378,29 +485,44 @@ fn reps(target: usize, per: usize) -> usize {
 fn template(name: &str, target: usize) -> P {
     let leaf10 = p(px(10.0), px(10.0));
     match name {
-        "wide_no_wrap_simple" => p(px(100.0), px(100.0)).horizontal().with(repeat(reps(target, 1), &[leaf10])),
-        "wide_wrapping" => p(px(100.0), None).wrap().horizontal().with(repeat(reps(target, 1), &[leaf10])),
-        "nested_vertical_stack" => {
-            p(px(200.0), FIT).vertical().padding(10.0).gap(5.0).with(repeat(reps(target, 1), &[p(expand(1.0), px(1.0))]))
-        }
+        "wide_no_wrap_simple" => p(px(100.0), px(100.0))
+            .horizontal()
+            .with(repeat(reps(target, 1), &[leaf10])),
+        "wide_wrapping" => p(px(100.0), None)
+            .wrap()
+            .horizontal()
+            .with(repeat(reps(target, 1), &[leaf10])),
+        "nested_vertical_stack" => p(px(200.0), FIT)
+            .vertical()
+            .padding(10.0)
+            .gap(5.0)
+            .with(repeat(reps(target, 1), &[p(expand(1.0), px(1.0))])),
         "padding_and_margin" => p(px(1000.0), FIT)
             .vertical()
             .padding(20.0)
             .gap(10.0)
             .with(repeat(reps(target, 1), &[p(expand(1.0), px(20.0)).margin(2.0)])),
-        "flex_expand_equal_weights" => {
-            p(px(10000.0), px(100.0)).horizontal().with(repeat(reps(target, 1), &[p(expand(1.0), expand(1.0))]))
-        }
+        "flex_expand_equal_weights" => p(px(10000.0), px(100.0))
+            .horizontal()
+            .with(repeat(reps(target, 1), &[p(expand(1.0), expand(1.0))])),
         "flex_expand_weights" => {
             let group = p(px(100.0), px(100.0))
                 .horizontal()
                 .with(vec![p(expand(1.0), expand(1.0)), p(expand(2.0), expand(1.0))]);
-            p(px(10000.0), px(100.0)).horizontal().with(repeat(reps(target, 3), &[group]))
+            p(px(10000.0), px(100.0))
+                .horizontal()
+                .with(repeat(reps(target, 3), &[group]))
         }
         "expand_with_max_constraint" | "expand_with_min_constraint" => {
             let second = p(expand(1.0), px(10.0));
-            let second = if name == "expand_with_max_constraint" { second.max_w(Sz::Px(40.0)) } else { second.min_w(Sz::Px(60.0)) };
-            let group = p(px(100.0), FIT).horizontal().with(vec![p(expand(1.0), px(10.0)), second]);
+            let second = if name == "expand_with_max_constraint" {
+                second.max_w(Sz::Px(40.0))
+            } else {
+                second.min_w(Sz::Px(60.0))
+            };
+            let group = p(px(100.0), FIT)
+                .horizontal()
+                .with(vec![p(expand(1.0), px(10.0)), second]);
             p(px(100.0), FIT).horizontal().with(repeat(reps(target, 3), &[group]))
         }
         "pixels_with_min_expand_constraint" => {
@@ -414,7 +536,10 @@ fn template(name: &str, target: usize) -> P {
                 set.push(p(px(s), px(s)));
                 set.push(p(px(1.0), expand(1.0)));
             }
-            p(px(100.0), FIT).wrap().horizontal().with(repeat(reps(target, 12), &set))
+            p(px(100.0), FIT)
+                .wrap()
+                .horizontal()
+                .with(repeat(reps(target, 12), &set))
         }
         "fit_nesting" => {
             // 1 + outer * (1 + 10 * (1 + 10 * (1 + leaves))); arewelayoutyet's is (10, 100).
@@ -423,7 +548,9 @@ fn template(name: &str, target: usize) -> P {
                 t if t <= 20_000 => (1, 100),
                 _ => (10, 100),
             };
-            let row = p(expand(1.0), FIT).horizontal().with(repeat(leaves, &[p(expand(1.0), px(10.0))]));
+            let row = p(expand(1.0), FIT)
+                .horizontal()
+                .with(repeat(leaves, &[p(expand(1.0), px(10.0))]));
             let col = p(expand(1.0), FIT).vertical().with(repeat(10, &[row]));
             let mid = p(expand(1.0), FIT).horizontal().with(repeat(10, &[col]));
             p(px(1000.0), FIT).vertical().padding(5.0).with(repeat(outer, &[mid]))
@@ -441,7 +568,14 @@ pub fn awly_scene(name: &str, target: usize) -> Scene {
     };
     let (w, h) = (size(t.w), size(t.h));
     let mut b = Builder::new();
-    let root = b.container(Style { direction: FlexDirection::Column, align_items: Align::FlexStart, ..root_style() }, None);
+    let root = b.container(
+        Style {
+            direction: FlexDirection::Column,
+            align_items: Align::FlexStart,
+            ..root_style()
+        },
+        None,
+    );
     emit(&mut b, &t, root, false);
     b.finish(w, h)
 }
@@ -461,18 +595,33 @@ pub const DEEP_VIEWPORT: f32 = 65536.0;
 /// flex-start` with 1px padding, and one text leaf at the bottom.
 pub fn deep_chain(depth: usize) -> Scene {
     let mut b = Builder::new();
-    let mut parent = b.container(Style { direction: FlexDirection::Column, align_items: Align::FlexStart, ..root_style() }, None);
+    let mut parent = b.container(
+        Style {
+            direction: FlexDirection::Column,
+            align_items: Align::FlexStart,
+            ..root_style()
+        },
+        None,
+    );
     let depth = depth.saturating_sub(2).max(1);
     for i in 0..depth {
         let style = Style {
-            direction: if i.is_multiple_of(2) { FlexDirection::Row } else { FlexDirection::Column },
+            direction: if i.is_multiple_of(2) {
+                FlexDirection::Row
+            } else {
+                FlexDirection::Column
+            },
             align_items: Align::FlexStart,
             padding: Edges::all(Lp::Px(1.0)),
             ..Style::default()
         };
         parent = b.container(style, Some(parent));
     }
-    b.text(Style::default(), "HHHH\u{200B}HHH\u{200B}HHHHH".to_string(), Some(parent));
+    b.text(
+        Style::default(),
+        "HHHH\u{200B}HHH\u{200B}HHHHH".to_string(),
+        Some(parent),
+    );
     b.finish(DEEP_VIEWPORT, DEEP_VIEWPORT)
 }
 
@@ -495,7 +644,14 @@ pub fn deep_branch(target: usize, seed: u64) -> Scene {
         next += 1;
     }
     let mut b = Builder::new();
-    let root = b.container(Style { direction: FlexDirection::Column, align_items: Align::FlexStart, ..root_style() }, None);
+    let root = b.container(
+        Style {
+            direction: FlexDirection::Column,
+            align_items: Align::FlexStart,
+            ..root_style()
+        },
+        None,
+    );
     fn walk(b: &mut Builder, kids: &[Vec<usize>], at: usize, depth: usize, parent: NodeId, rng: &mut Rng) {
         if kids[at].is_empty() {
             let n = rng.range(1, 3);
@@ -504,7 +660,11 @@ pub fn deep_branch(target: usize, seed: u64) -> Scene {
             return;
         }
         let style = Style {
-            direction: if depth.is_multiple_of(2) { FlexDirection::Row } else { FlexDirection::Column },
+            direction: if depth.is_multiple_of(2) {
+                FlexDirection::Row
+            } else {
+                FlexDirection::Column
+            },
             align_items: Align::FlexStart,
             ..Style::default()
         };
@@ -527,7 +687,13 @@ pub fn text_columns(target: usize, seed: u64) -> Scene {
     const COLUMNS: usize = 10;
     let mut rng = Rng::new(seed);
     let mut b = Builder::new();
-    let root = b.container(Style { direction: FlexDirection::Row, ..root_style() }, None);
+    let root = b.container(
+        Style {
+            direction: FlexDirection::Row,
+            ..root_style()
+        },
+        None,
+    );
     let per = (target.saturating_sub(1 + COLUMNS) / COLUMNS).max(1);
     for _ in 0..COLUMNS {
         let col = b.container(
@@ -543,7 +709,14 @@ pub fn text_columns(target: usize, seed: u64) -> Scene {
         for _ in 0..per {
             let n = rng.range(3, 20);
             let t = words(&mut rng, n, 1, 8);
-            b.text(Style { shrink: 0.0, ..Style::default() }, t, Some(col));
+            b.text(
+                Style {
+                    shrink: 0.0,
+                    ..Style::default()
+                },
+                t,
+                Some(col),
+            );
         }
     }
     b.finish(2000.0, 1000.0)
@@ -593,7 +766,12 @@ fn item_style(rng: &mut Rng, parent: Parent) -> Style {
 
 fn container_style(rng: &mut Rng, base: Style, percent_ok: bool) -> Style {
     let mut s = Style {
-        direction: rng.pick(&[FlexDirection::Row, FlexDirection::Column, FlexDirection::RowReverse, FlexDirection::ColumnReverse]),
+        direction: rng.pick(&[
+            FlexDirection::Row,
+            FlexDirection::Column,
+            FlexDirection::RowReverse,
+            FlexDirection::ColumnReverse,
+        ]),
         justify: rng.pick(&[
             Justify::FlexStart,
             Justify::FlexEnd,
@@ -613,7 +791,9 @@ fn container_style(rng: &mut Rng, base: Style, percent_ok: bool) -> Style {
     // which in a reversed container overflows past main-start, as Chromium does; Taffy clamps
     // the line to the start edge. The oracle's exclusion: a reversed container never gets
     // `space-between` (`tests/taffy_oracle.rs`, `container_style`).
-    if matches!(s.direction, FlexDirection::RowReverse | FlexDirection::ColumnReverse) && s.justify == Justify::SpaceBetween {
+    if matches!(s.direction, FlexDirection::RowReverse | FlexDirection::ColumnReverse)
+        && s.justify == Justify::SpaceBetween
+    {
         s.justify = Justify::SpaceAround;
     }
     if rng.chance(40) {
@@ -697,7 +877,13 @@ pub fn random_cards(target: usize, seed: u64) -> Scene {
         },
         None,
     );
-    let me = Parent { column: false, align_items: Align::FlexStart, definite_width: true, intrinsic_row: false, intrinsic_width: false };
+    let me = Parent {
+        column: false,
+        align_items: Align::FlexStart,
+        definite_width: true,
+        intrinsic_row: false,
+        intrinsic_width: false,
+    };
     while b.nodes.len() < target {
         random_subtree(&mut b, &mut rng, 4, root, me, true);
     }
@@ -730,7 +916,10 @@ mod tests {
                 assert_eq!(a.scene, b.scene, "{name} {label} deterministic");
                 assert!(preorder_ok(&a.scene), "{name} {label} pre-order");
                 let n = a.scene.len() as f64;
-                assert!(n > target as f64 * 0.7 && n < target as f64 * 1.5, "{name} {label}: {n} nodes for {target}");
+                assert!(
+                    n > target as f64 * 0.7 && n < target as f64 * 1.5,
+                    "{name} {label}: {n} nodes for {target}"
+                );
             }
         }
     }

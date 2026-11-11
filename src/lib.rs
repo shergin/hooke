@@ -97,16 +97,16 @@ pub mod tree;
 
 pub use children::{Children, Slot};
 pub use geometry::{Axis, Edges, Point, Rect, Size};
-pub use measure::{Available, Measure, MeasureCache, MeasureInput, Measured, NoCache};
 #[cfg(feature = "std")]
 pub use measure::SharedMeasureCache;
-pub use pass::{layout, Cancelled, LayoutCx, RootConstraints, Scratch, Stats};
+pub use measure::{Available, Measure, MeasureCache, MeasureInput, Measured, NoCache};
+pub use pass::{Cancelled, LayoutCx, RootConstraints, Scratch, Stats, layout};
 pub use scalar::{Opt, Scalar};
 pub use snap::snap;
-pub use state::{ConstraintKey, LayoutState, NodeKind, DEFAULT_SLOTS};
+pub use state::{ConstraintKey, DEFAULT_SLOTS, LayoutState, NodeKind};
 pub use style::{
-    AlignContent, AlignItems, BoxSizing, Direction, Display, FlexDirection, FlexWrap, JustifyContent, Length,
-    Overflow, Position, Style,
+    AlignContent, AlignItems, BoxSizing, Direction, Display, FlexDirection, FlexWrap, JustifyContent, Length, Overflow,
+    Position, Style,
 };
 pub use tree::{LayoutNode, Parts, PartsMut};
 

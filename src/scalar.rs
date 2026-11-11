@@ -65,20 +65,12 @@ pub trait Scalar:
     /// The larger of two values.
     #[inline]
     fn max(self, other: Self) -> Self {
-        if other > self {
-            other
-        } else {
-            self
-        }
+        if other > self { other } else { self }
     }
     /// The smaller of two values.
     #[inline]
     fn min(self, other: Self) -> Self {
-        if other < self {
-            other
-        } else {
-            self
-        }
+        if other < self { other } else { self }
     }
     /// `self` clamped to `[lo, hi]`, where either bound may be undefined.
     #[inline]
@@ -154,20 +146,12 @@ impl Scalar for f32 {
     #[inline]
     fn floor(self) -> Self {
         let t = trunc_f32(self);
-        if self < t {
-            t - 1.0
-        } else {
-            t
-        }
+        if self < t { t - 1.0 } else { t }
     }
     #[inline]
     fn ceil(self) -> Self {
         let t = trunc_f32(self);
-        if self > t {
-            t + 1.0
-        } else {
-            t
-        }
+        if self > t { t + 1.0 } else { t }
     }
     #[inline]
     fn round(self) -> Self {
@@ -225,20 +209,12 @@ impl Scalar for f64 {
     #[inline]
     fn floor(self) -> Self {
         let t = trunc_f64(self);
-        if self < t {
-            t - 1.0
-        } else {
-            t
-        }
+        if self < t { t - 1.0 } else { t }
     }
     #[inline]
     fn ceil(self) -> Self {
         let t = trunc_f64(self);
-        if self > t {
-            t + 1.0
-        } else {
-            t
-        }
+        if self > t { t + 1.0 } else { t }
     }
     #[inline]
     fn round(self) -> Self {
@@ -280,11 +256,7 @@ impl<S: Scalar> Opt<S> {
     /// The value, if defined.
     #[inline]
     pub fn get(self) -> Option<S> {
-        if self.0.is_none() {
-            None
-        } else {
-            Some(self.0)
-        }
+        if self.0.is_none() { None } else { Some(self.0) }
     }
     /// True when defined.
     #[inline]
@@ -299,29 +271,17 @@ impl<S: Scalar> Opt<S> {
     /// The value, or `default` when undefined.
     #[inline]
     pub fn unwrap_or(self, default: S) -> S {
-        if self.0.is_none() {
-            default
-        } else {
-            self.0
-        }
+        if self.0.is_none() { default } else { self.0 }
     }
     /// Applies `f` to a defined value.
     #[inline]
     pub fn map(self, f: impl FnOnce(S) -> S) -> Self {
-        if self.0.is_none() {
-            self
-        } else {
-            Opt(f(self.0))
-        }
+        if self.0.is_none() { self } else { Opt(f(self.0)) }
     }
     /// `self` if defined, otherwise `other`.
     #[inline]
     pub fn or(self, other: Self) -> Self {
-        if self.0.is_none() {
-            other
-        } else {
-            self
-        }
+        if self.0.is_none() { other } else { self }
     }
     /// Bits for cache keys; `NONE` has one canonical pattern.
     #[inline]

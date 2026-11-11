@@ -60,10 +60,25 @@ mod tests {
     #[test]
     fn wraps_at_zero_width_spaces_only() {
         let t = "HHHH\u{200B}HHHH";
-        assert_eq!(measure_text(t, [None, None], [TextAvail::MaxContent, TextAvail::MaxContent]), [80.0, 10.0]);
-        assert_eq!(measure_text(t, [None, None], [TextAvail::MinContent, TextAvail::MaxContent]), [40.0, 20.0]);
-        assert_eq!(measure_text(t, [None, None], [TextAvail::Definite(50.0), TextAvail::MaxContent]), [50.0, 20.0]);
-        assert_eq!(measure_text(t, [Some(45.0), None], [TextAvail::MaxContent, TextAvail::MaxContent]), [45.0, 20.0]);
-        assert_eq!(measure_text(t, [None, None], [TextAvail::Definite(10.0), TextAvail::MaxContent]), [40.0, 20.0]);
+        assert_eq!(
+            measure_text(t, [None, None], [TextAvail::MaxContent, TextAvail::MaxContent]),
+            [80.0, 10.0]
+        );
+        assert_eq!(
+            measure_text(t, [None, None], [TextAvail::MinContent, TextAvail::MaxContent]),
+            [40.0, 20.0]
+        );
+        assert_eq!(
+            measure_text(t, [None, None], [TextAvail::Definite(50.0), TextAvail::MaxContent]),
+            [50.0, 20.0]
+        );
+        assert_eq!(
+            measure_text(t, [Some(45.0), None], [TextAvail::MaxContent, TextAvail::MaxContent]),
+            [45.0, 20.0]
+        );
+        assert_eq!(
+            measure_text(t, [None, None], [TextAvail::Definite(10.0), TextAvail::MaxContent]),
+            [40.0, 20.0]
+        );
     }
 }

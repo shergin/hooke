@@ -7,8 +7,8 @@ use hooke::{
     AlignItems, Children, Direction, Handle, JustifyContent, LayoutCx, Length, Position, RootConstraints, Scratch,
     SharedMeasureCache, Size, Style,
 };
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 use support::*;
 
 fn row() -> Style {
@@ -27,7 +27,10 @@ fn fixture() -> Handle<Node> {
     view(0, row(), vec![a, b, p])
 }
 
-const VIEWPORT: Size<f32> = Size { width: 800.0, height: 600.0 };
+const VIEWPORT: Size<f32> = Size {
+    width: 800.0,
+    height: 600.0,
+};
 
 #[test]
 fn base_layout_and_sizes() {
@@ -46,7 +49,11 @@ fn base_layout_and_sizes() {
     // Each text is measured once at max-content and once more when its cross size becomes
     // definite through stretching (as Yoga and Taffy do); the paragraph's answer is reused.
     assert_eq!(calls, 7);
-    assert_eq!(core::mem::size_of::<hooke::LayoutState>(), 64 + 32 * hooke::DEFAULT_SLOTS, "192 with four slots, 128 with two");
+    assert_eq!(
+        core::mem::size_of::<hooke::LayoutState>(),
+        64 + 32 * hooke::DEFAULT_SLOTS,
+        "192 with four slots, 128 with two"
+    );
     assert_eq!(core::mem::size_of::<Style>(), 144);
     assert_eq!(core::mem::size_of::<hooke::Slot<Node>>(), 16);
 }
@@ -60,20 +67,40 @@ fn single_edit_re_measures_one_leaf_and_clones_nothing_during_layout() {
     let mut candidate = base.clone(); // O(1) fork
     {
         let t2 = node_at_mut(&mut candidate, &[0, 1]); // clones root, A, t2 and two lists
-        t2.kind = Kind::Text { intrinsic: Size::new(60.0, 10.0) };
+        t2.kind = Kind::Text {
+            intrinsic: Size::new(60.0, 10.0),
+        };
         t2.layout.set_content_id(fresh_id());
     }
     let (size, stats, calls) = run(&mut candidate, VIEWPORT, None);
     assert_eq!(size.width, 177.0);
     assert_eq!(candidate.children[0].node.layout.size().width, 80.0);
-    assert_eq!(calls, 2, "only t2 is re-measured (max-content, then at its stretched height)");
-    assert_eq!(stats.nodes_cloned, 0, "the host's path copy already made the path unique");
+    assert_eq!(
+        calls, 2,
+        "only t2 is re-measured (max-content, then at its stretched height)"
+    );
+    assert_eq!(
+        stats.nodes_cloned, 0,
+        "the host's path copy already made the path unique"
+    );
     assert_eq!(frames(&base), before, "the base revision is untouched");
-    assert!(Handle::ptr_eq(&base.children[1].node, &candidate.children[1].node), "B shared");
-    assert!(Handle::ptr_eq(&base.children[2].node, &candidate.children[2].node), "P shared");
-    assert!(!Handle::ptr_eq(&base.children[0].node, &candidate.children[0].node), "A path-copied");
+    assert!(
+        Handle::ptr_eq(&base.children[1].node, &candidate.children[1].node),
+        "B shared"
+    );
+    assert!(
+        Handle::ptr_eq(&base.children[2].node, &candidate.children[2].node),
+        "P shared"
+    );
+    assert!(
+        !Handle::ptr_eq(&base.children[0].node, &candidate.children[0].node),
+        "A path-copied"
+    );
     assert_eq!(candidate.children[1].offset.x, 80.0, "B moved in root's private list");
-    assert!(!candidate.children.is_touched() && !candidate.children[0].node.children.is_touched(), "touched cleared");
+    assert!(
+        !candidate.children.is_touched() && !candidate.children[0].node.children.is_touched(),
+        "touched cleared"
+    );
 }
 
 #[test]
@@ -83,12 +110,17 @@ fn a_shifted_sibling_stays_shared() {
     let mut candidate = base.clone();
     {
         let t1 = node_at_mut(&mut candidate, &[0, 0]);
-        t1.kind = Kind::Text { intrinsic: Size::new(100.0, 10.0) };
+        t1.kind = Kind::Text {
+            intrinsic: Size::new(100.0, 10.0),
+        };
         t1.layout.set_content_id(fresh_id());
     }
     run(&mut candidate, VIEWPORT, None);
     let a = &candidate.children[0].node;
-    assert!(Handle::ptr_eq(&a.children[1].node, &base.children[0].node.children[1].node), "t2 shared although it moved");
+    assert!(
+        Handle::ptr_eq(&a.children[1].node, &base.children[0].node.children[1].node),
+        "t2 shared although it moved"
+    );
     assert_eq!(a.children[1].offset.x, 100.0);
     assert_eq!(base.children[0].node.children[1].offset.x, 20.0);
 }
@@ -119,12 +151,16 @@ fn two_candidates_on_two_threads_leave_the_base_untouched_and_commit_by_cas() {
     let t3_content = fresh_id();
     {
         let t1 = node_at_mut(&mut c1, &[0, 0]);
-        t1.kind = Kind::Text { intrinsic: Size::new(100.0, 10.0) };
+        t1.kind = Kind::Text {
+            intrinsic: Size::new(100.0, 10.0),
+        };
         t1.layout.set_content_id(fresh_id());
     }
     {
         let t3 = node_at_mut(&mut c2, &[1, 0]);
-        t3.kind = Kind::Text { intrinsic: Size::new(10.0, 10.0) };
+        t3.kind = Kind::Text {
+            intrinsic: Size::new(10.0, 10.0),
+        };
         t3.layout.set_content_id(t3_content);
     }
     let (r1, r2) = std::thread::scope(|s| {
@@ -141,7 +177,10 @@ fn two_candidates_on_two_threads_leave_the_base_untouched_and_commit_by_cas() {
         number: u64,
         root: Handle<Node>,
     }
-    let tree = Mutex::new(Revision { number: 0, root: base.clone() });
+    let tree = Mutex::new(Revision {
+        number: 0,
+        root: base.clone(),
+    });
     let try_commit = |base_number: u64, root: Handle<Node>| -> Result<u64, u64> {
         let mut cur = tree.lock().unwrap();
         if cur.number != base_number {
@@ -152,17 +191,26 @@ fn two_candidates_on_two_threads_leave_the_base_untouched_and_commit_by_cas() {
         Ok(cur.number)
     };
     let committed = try_commit(0, c1.clone()).expect("first commit succeeds");
-    assert_eq!(try_commit(0, c2.clone()), Err(committed), "second commit rejected against a stale base");
+    assert_eq!(
+        try_commit(0, c2.clone()),
+        Err(committed),
+        "second commit rejected against a stale base"
+    );
 
     // Rebase c2's edit onto the winner; its text measurement comes back from the shared cache.
     let mut rebased = tree.lock().unwrap().root.clone();
     {
         let t3 = node_at_mut(&mut rebased, &[1, 0]);
-        t3.kind = Kind::Text { intrinsic: Size::new(10.0, 10.0) };
+        t3.kind = Kind::Text {
+            intrinsic: Size::new(10.0, 10.0),
+        };
         t3.layout.set_content_id(t3_content);
     }
     let (_, stats, calls) = run(&mut rebased, VIEWPORT, Some(&cache));
-    assert_eq!(calls, 0, "the losing candidate's measurements were donated through the shared cache");
+    assert_eq!(
+        calls, 0,
+        "the losing candidate's measurements were donated through the shared cache"
+    );
     assert_eq!(stats.shared_hits, 2);
     try_commit(committed, rebased).expect("rebased commit succeeds");
 }
@@ -175,19 +223,34 @@ fn cancellation_returns_err_and_leaves_the_base_alone() {
     let mut candidate = base.clone();
     {
         let t2 = node_at_mut(&mut candidate, &[0, 1]);
-        t2.kind = Kind::Text { intrinsic: Size::new(1.0, 1.0) };
+        t2.kind = Kind::Text {
+            intrinsic: Size::new(1.0, 1.0),
+        };
         t2.layout.set_content_id(fresh_id());
     }
     let flag = AtomicBool::new(true);
     let mut scratch = Scratch::new();
     let mut cx = LayoutCx::new(&mut scratch).with_cancel(&flag);
     let mut shaper = Shaper { calls: 0 };
-    let r = hooke::layout(&mut candidate, RootConstraints::viewport(800.0, 600.0), &mut cx, &mut shaper);
+    let r = hooke::layout(
+        &mut candidate,
+        RootConstraints::viewport(800.0, 600.0),
+        &mut cx,
+        &mut shaper,
+    );
     assert!(r.is_err());
     assert_eq!(frames(&base), before);
     flag.store(false, Ordering::Relaxed);
     let mut cx = LayoutCx::new(&mut scratch).with_cancel(&flag);
-    assert!(hooke::layout(&mut candidate, RootConstraints::viewport(800.0, 600.0), &mut cx, &mut shaper).is_ok());
+    assert!(
+        hooke::layout(
+            &mut candidate,
+            RootConstraints::viewport(800.0, 600.0),
+            &mut cx,
+            &mut shaper
+        )
+        .is_ok()
+    );
 }
 
 #[test]
@@ -204,7 +267,13 @@ fn hidden_subtrees_are_never_written() {
 }
 
 /// Builds a random tree of views and texts, remembering a path to a random leaf.
-fn random_tree(rng: &mut Rng, depth: u32, tag: &mut u32, paths: &mut Vec<Vec<usize>>, path: &mut Vec<usize>) -> Handle<Node> {
+fn random_tree(
+    rng: &mut Rng,
+    depth: u32,
+    tag: &mut u32,
+    paths: &mut Vec<Vec<usize>>,
+    path: &mut Vec<usize>,
+) -> Handle<Node> {
     *tag += 1;
     let t = *tag;
     let mut style = Style::web()
@@ -254,7 +323,9 @@ fn incremental_equals_cold_after_random_edits() {
             let (w, h) = (10.0 + rng.below(100) as f32, 8.0 + rng.below(30) as f32);
             {
                 let leaf = node_at_mut(&mut root, &path);
-                leaf.kind = Kind::Text { intrinsic: Size::new(w, h) };
+                leaf.kind = Kind::Text {
+                    intrinsic: Size::new(w, h),
+                };
                 leaf.layout.set_content_id(fresh_id());
             }
             run(&mut root, VIEWPORT, None);
@@ -263,7 +334,11 @@ fn incremental_equals_cold_after_random_edits() {
         // Cold: rebuild the same tree from scratch by deep-copying structure with fresh state.
         let mut cold = deep_copy_fresh(&root);
         run(&mut cold, VIEWPORT, None);
-        assert_eq!(incremental, frames(&cold), "seed {seed}: incremental layout must equal a cold layout");
+        assert_eq!(
+            incremental,
+            frames(&cold),
+            "seed {seed}: incremental layout must equal a cold layout"
+        );
     }
 }
 
@@ -292,13 +367,17 @@ fn concurrent_equals_sequential() {
     run(&mut base, VIEWPORT, None);
     let base_frames = frames(&base);
 
-    let edits: Vec<(Vec<usize>, f32)> = (0..4).map(|i| (paths[i % paths.len()].clone(), 15.0 + 10.0 * i as f32)).collect();
+    let edits: Vec<(Vec<usize>, f32)> = (0..4)
+        .map(|i| (paths[i % paths.len()].clone(), 15.0 + 10.0 * i as f32))
+        .collect();
     let mut sequential = Vec::new();
     for (path, w) in &edits {
         let mut c = base.clone();
         {
             let leaf = node_at_mut(&mut c, path);
-            leaf.kind = Kind::Text { intrinsic: Size::new(*w, 10.0) };
+            leaf.kind = Kind::Text {
+                intrinsic: Size::new(*w, 10.0),
+            };
             leaf.layout.set_content_id(fresh_id());
         }
         run(&mut c, VIEWPORT, None);
@@ -314,7 +393,9 @@ fn concurrent_equals_sequential() {
                 s.spawn(move || {
                     {
                         let leaf = node_at_mut(&mut c, &path);
-                        leaf.kind = Kind::Text { intrinsic: Size::new(w, 10.0) };
+                        leaf.kind = Kind::Text {
+                            intrinsic: Size::new(w, 10.0),
+                        };
                         leaf.layout.set_content_id(fresh_id());
                     }
                     run(&mut c, VIEWPORT, None);
@@ -325,7 +406,11 @@ fn concurrent_equals_sequential() {
         handles.into_iter().map(|h| h.join().unwrap()).collect()
     });
     assert_eq!(sequential, concurrent);
-    assert_eq!(frames(&base), base_frames, "base byte-identical after four concurrent passes");
+    assert_eq!(
+        frames(&base),
+        base_frames,
+        "base byte-identical after four concurrent passes"
+    );
 }
 
 #[test]

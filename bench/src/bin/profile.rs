@@ -74,7 +74,11 @@ fn us(d: Duration, iters: u64) -> f64 {
 }
 
 fn run(op: &str, w: &Workload, budget: Duration, split: bool) {
-    let needs_edit = || w.edit.as_ref().unwrap_or_else(|| panic!("workload {} has no text leaves", w.name));
+    let needs_edit = || {
+        w.edit
+            .as_ref()
+            .unwrap_or_else(|| panic!("workload {} has no text leaves", w.name))
+    };
     let mut e = HookeEngine::build(&w.scene);
     e.layout();
     let (mut t_set, mut t_layout) = (Duration::ZERO, Duration::ZERO);
@@ -119,18 +123,33 @@ fn run(op: &str, w: &Workload, budget: Duration, split: bool) {
         "candidates8" => {
             let edits: Vec<(NodeId, String)> = workloads::spread_leaves(&w.scene, 8)
                 .into_iter()
-                .map(|n| (n, format!("{}\u{200B}HHHHH", w.scene.nodes[n].text.as_deref().unwrap_or(""))))
+                .map(|n| {
+                    (
+                        n,
+                        format!("{}\u{200B}HHHHH", w.scene.nodes[n].text.as_deref().unwrap_or("")),
+                    )
+                })
                 .collect();
             timed(budget, || drop(black_box(e.candidates(&edits, false))))
         }
         "build" => timed(budget, || drop(black_box(HookeEngine::build(&w.scene)))),
         _ => unreachable!(),
     };
-    println!("op={op} workload={} size={} iterations={iters} total_s={:.3} mean_us={:.3}", w.name, w.size, total.as_secs_f64(), us(total, iters));
+    println!(
+        "op={op} workload={} size={} iterations={iters} total_s={:.3} mean_us={:.3}",
+        w.name,
+        w.size,
+        total.as_secs_f64(),
+        us(total, iters)
+    );
     if split && op == "edit" {
         // The split sums include the warm-up iterations.
         let n = iters + u64::from(WARM_UP);
-        println!("split: set_text_mean_us={:.3} layout_mean_us={:.3}", us(t_set, n), us(t_layout, n));
+        println!(
+            "split: set_text_mean_us={:.3} layout_mean_us={:.3}",
+            us(t_set, n),
+            us(t_layout, n)
+        );
     } else if split {
         eprintln!("profile: --split applies to edit only");
     }

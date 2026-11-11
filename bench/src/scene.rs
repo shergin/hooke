@@ -110,7 +110,12 @@ pub struct Edges<T> {
 
 impl<T: Copy> Edges<T> {
     pub const fn all(v: T) -> Self {
-        Edges { left: v, right: v, top: v, bottom: v }
+        Edges {
+            left: v,
+            right: v,
+            top: v,
+            bottom: v,
+        }
     }
 }
 
@@ -220,7 +225,11 @@ impl Scene {
     }
     /// Indices of the text leaves, in pre-order.
     pub fn text_leaves(&self) -> impl Iterator<Item = NodeId> + '_ {
-        self.nodes.iter().enumerate().filter(|(_, n)| n.text.is_some()).map(|(i, _)| i)
+        self.nodes
+            .iter()
+            .enumerate()
+            .filter(|(_, n)| n.text.is_some())
+            .map(|(i, _)| i)
     }
 }
 

@@ -2,15 +2,16 @@
 //! intrinsic contributions of §9.9.
 
 use super::{
-    is_absolute, padding_border, resolve_bb, resolve_direction, transfer, transfer_bb, Ctx, F_AUTO_MIN, F_BASELINE,
-    F_BASIS_DEFINITE, F_CONTENT_BASE, F_CONTENT_BOX, F_RELATIVE, F_SCROLL, F_STRETCHED, M_BOTTOM, M_LEFT, M_RIGHT, M_TOP,
+    Ctx, F_AUTO_MIN, F_BASELINE, F_BASIS_DEFINITE, F_CONTENT_BASE, F_CONTENT_BOX, F_RELATIVE, F_SCROLL, F_STRETCHED,
+    M_BOTTOM, M_LEFT, M_RIGHT, M_TOP, is_absolute, padding_border, resolve_bb, resolve_direction, transfer,
+    transfer_bb,
 };
 use crate::geometry::{Axis, Edges, Point, Size};
 use crate::measure::{Available, Measure};
 use crate::pass::{Cancelled, Input, Pass};
 use crate::scalar::{Opt, Scalar};
 use crate::state::NodeKind;
-use crate::style::{slot, AlignItems, Direction, Display, Position, Style, Unit};
+use crate::style::{AlignItems, Direction, Display, Position, Style, Unit, slot};
 use crate::tree::LayoutNode;
 use alloc::vec::Vec;
 
@@ -96,15 +97,23 @@ impl<S: Scalar> Item<S> {
     /// The minimum on `axis`, transferred through the aspect ratio from the other axis when the
     /// style gives none on `axis`.
     pub fn transferred_min(&self, style_pb: Size<S>, content_box: bool, axis: Axis) -> Opt<S> {
-        self.min.get(axis).or(self.transfer_other(self.min, style_pb, content_box, axis))
+        self.min
+            .get(axis)
+            .or(self.transfer_other(self.min, style_pb, content_box, axis))
     }
     pub fn transferred_max(&self, style_pb: Size<S>, content_box: bool, axis: Axis) -> Opt<S> {
-        self.max.get(axis).or(self.transfer_other(self.max, style_pb, content_box, axis))
+        self.max
+            .get(axis)
+            .or(self.transfer_other(self.max, style_pb, content_box, axis))
     }
     fn transfer_other(&self, from: Size<Opt<S>>, pb: Size<S>, content_box: bool, axis: Axis) -> Opt<S> {
         match (self.aspect_ratio.get(), from.get(axis.cross()).get()) {
             (Some(r), Some(v)) => {
-                let inner = if content_box { (v - pb.get(axis.cross())).max(S::ZERO) } else { v };
+                let inner = if content_box {
+                    (v - pb.get(axis.cross())).max(S::ZERO)
+                } else {
+                    v
+                };
                 let other = match axis.cross() {
                     Axis::Horizontal => inner / r,
                     Axis::Vertical => inner * r,
@@ -122,15 +131,30 @@ const MAX_CONTENTS_DEPTH: usize = 16;
 /// §9.1: collects the in-flow children of `node` as items, flattening `display: contents`,
 /// skipping `display: none`, setting absolutely positioned children aside (as `start, len`
 /// pairs in `absolute`) and ordering by `order`.
-pub(crate) fn collect<S, N>(node: &N, ctx: &Ctx<S>, items: &mut Vec<Item<S>>, paths: &mut Vec<u32>, absolute: &mut Vec<u32>)
-where
+pub(crate) fn collect<S, N>(
+    node: &N,
+    ctx: &Ctx<S>,
+    items: &mut Vec<Item<S>>,
+    paths: &mut Vec<u32>,
+    absolute: &mut Vec<u32>,
+) where
     S: Scalar,
     N: LayoutNode<Scalar = S>,
 {
     let mut stack = [0u32; MAX_CONTENTS_DEPTH];
     let mut index = 0u32;
     let mut any_order = false;
-    collect_from(node, ctx, &mut stack, 0, items, paths, absolute, &mut index, &mut any_order);
+    collect_from(
+        node,
+        ctx,
+        &mut stack,
+        0,
+        items,
+        paths,
+        absolute,
+        &mut index,
+        &mut any_order,
+    );
     if any_order {
         // In place and allocation-free; the index makes it stable.
         items.sort_unstable_by(|a, b| a.order.cmp(&b.order).then(a.index.cmp(&b.index)));
@@ -243,8 +267,8 @@ fn make_item<S: Scalar>(cs: &Style<S>, ctx: &Ctx<S>, path_start: u32, path_len: 
     };
     let cross_auto_margin = ms || me;
     let cross_tag = size_tag[cross.index()];
-    let stretched = !cross_auto_margin
-        && (cross_tag == Unit::Stretch || (align == AlignItems::Stretch && cross_tag == Unit::Auto));
+    let stretched =
+        !cross_auto_margin && (cross_tag == Unit::Stretch || (align == AlignItems::Stretch && cross_tag == Unit::Auto));
     let scroll = cs.overflow_x().is_scroll_container() || cs.overflow_y().is_scroll_container();
     let baseline = align == AlignItems::Baseline && main == Axis::Horizontal && !cross_auto_margin;
 
@@ -258,7 +282,13 @@ fn make_item<S: Scalar>(cs: &Style<S>, ctx: &Ctx<S>, path_start: u32, path_len: 
         let top = cs.resolve(slot::INSET + 2, ctx.percent.height);
         let bottom = cs.resolve(slot::INSET + 3, ctx.percent.height);
         inset.x = match (left.get(), right.get()) {
-            (Some(l), Some(r)) => if direction == Direction::Rtl { -r } else { l },
+            (Some(l), Some(r)) => {
+                if direction == Direction::Rtl {
+                    -r
+                } else {
+                    l
+                }
+            }
             (Some(l), None) => l,
             (None, Some(r)) => -r,
             (None, None) => S::ZERO,
@@ -337,7 +367,9 @@ where
     N: LayoutNode<Scalar = S>,
     M: Measure<N>,
 {
-    let mut input = Input::new(known, available, ctx.percent, ctx.flow.direction).content_size().with_indefinite(indefinite);
+    let mut input = Input::new(known, available, ctx.percent, ctx.flow.direction)
+        .content_size()
+        .with_indefinite(indefinite);
     if final_layout {
         input = input.finalize();
     }
@@ -347,7 +379,11 @@ where
 /// The cross-axis constraint an item is measured under: a known cross size (its definite style
 /// size, or the stretch size), the available cross space less its margins, clamped by its cross
 /// min and max, and whether the known size is definite in the §9.8 sense.
-pub(crate) fn cross_constraint<S: Scalar>(ctx: &Ctx<S>, it: &Item<S>, content_box: bool) -> (Opt<S>, Available<S>, bool) {
+pub(crate) fn cross_constraint<S: Scalar>(
+    ctx: &Ctx<S>,
+    it: &Item<S>,
+    content_box: bool,
+) -> (Opt<S>, Available<S>, bool) {
     let cross = ctx.cross();
     let margins = it.margin.sum(cross);
     let tmin = it.transferred_min(it.pb, content_box, cross);
@@ -456,9 +492,7 @@ where
                 tag => keyword(tag),
             };
             // B. An aspect ratio and a definite cross size: transfer.
-            if cross_definite
-                && let (Some(r), Some(c)) = (it.aspect_ratio.get(), cross_known.get())
-            {
+            if cross_definite && let (Some(r), Some(c)) = (it.aspect_ratio.get(), cross_known.get()) {
                 base = transfer_bb(content_box, it.pb, cross, c, r);
                 flags |= F_BASIS_DEFINITE;
                 break 'basis;
@@ -473,7 +507,17 @@ where
             let mut available = Size::new(Available::MaxContent, Available::MaxContent);
             available.set(main, constraint);
             available.set(cross, cross_available);
-            let (measured, _) = ask(pass, node, ctx, &it, paths, known, available, Size::new(false, false), false)?;
+            let (measured, _) = ask(
+                pass,
+                node,
+                ctx,
+                &it,
+                paths,
+                known,
+                available,
+                Size::new(false, false),
+                false,
+            )?;
             base = measured.get(main);
         }
         // The flex base size is floored at the item's padding plus border, as Chrome does.
@@ -508,7 +552,19 @@ where
                 known.set(cross, cross_known);
                 let mut available = Size::new(Available::MinContent, Available::MinContent);
                 available.set(cross, cross_available);
-                ask(pass, node, ctx, &it, paths, known, available, Size::new(false, false), false)?.0.get(main)
+                ask(
+                    pass,
+                    node,
+                    ctx,
+                    &it,
+                    paths,
+                    known,
+                    available,
+                    Size::new(false, false),
+                    false,
+                )?
+                .0
+                .get(main)
             };
             // Clamped by the specified size suggestion (which includes a size transferred
             // through the aspect ratio) and by the max main size.
@@ -527,7 +583,11 @@ where
 
         // The hypothetical main size: the base clamped by the used min and max, with sizes
         // transferred through the aspect ratio applying here only.
-        let tmin = it.transferred_min(it.pb, content_box, main).unwrap_or(S::ZERO).max(min_main).max(it.pb.get(main));
+        let tmin = it
+            .transferred_min(it.pb, content_box, main)
+            .unwrap_or(S::ZERO)
+            .max(min_main)
+            .max(it.pb.get(main));
         let tmax = it.transferred_max(it.pb, content_box, main);
         item.hypothetical = base.clamp_opt(Opt::some(tmin), tmax);
     }
@@ -559,7 +619,19 @@ where
     known.set(cross, cross_known);
     let mut available = Size::new(Available::MinContent, Available::MinContent);
     available.set(cross, cross_available);
-    let min_content = ask(pass, node, ctx, it, paths, known, available, Size::new(false, false), false)?.0.get(main);
+    let min_content = ask(
+        pass,
+        node,
+        ctx,
+        it,
+        paths,
+        known,
+        available,
+        Size::new(false, false),
+        false,
+    )?
+    .0
+    .get(main);
     let mut m = min_content;
     if let Some(s) = it.size.get(main).get() {
         m = m.min(s);
@@ -606,7 +678,11 @@ where
         // not growable) and/or as a minimum (if it is not shrinkable), and then further clamped by
         // its min/max main size"; margins are added outside every clamp (css-sizing-3 §5.1: min
         // and max sizes never apply to margins).
-        let clamping_basis = if is_row { pref.map(|p| p.max(it.base)).unwrap_or(it.base) } else { it.base };
+        let clamping_basis = if is_row {
+            pref.map(|p| p.max(it.base)).unwrap_or(it.base)
+        } else {
+            it.base
+        };
         let inflexible = it.grow == S::ZERO && it.shrink == S::ZERO;
         let min_c = style_min.unwrap_or(S::ZERO).max(it.min_main);
         // The clamps decide regardless of the content when the item is inflexible (its
@@ -629,7 +705,19 @@ where
                 known.set(cross, cross_known);
                 let mut available = Size::new(constraint, constraint);
                 available.set(cross, cross_available);
-                let m = ask(pass, node, ctx, &it, paths, known, available, Size::new(false, false), false)?.0.get(main);
+                let m = ask(
+                    pass,
+                    node,
+                    ctx,
+                    &it,
+                    paths,
+                    known,
+                    available,
+                    Size::new(false, false),
+                    false,
+                )?
+                .0
+                .get(main);
                 match (it.aspect_ratio.get(), cross_known.get()) {
                     (Some(r), Some(c)) => m.max(transfer_bb(content_box, it.pb, cross, c, r)),
                     _ => m,
@@ -663,10 +751,18 @@ where
     if min_content && ctx.flow.multiline {
         return Ok(largest);
     }
-    let gaps = if n > 1 { ctx.gap_main * S::from_f32((n - 1) as f32) } else { S::ZERO };
+    let gaps = if n > 1 {
+        ctx.gap_main * S::from_f32((n - 1) as f32)
+    } else {
+        S::ZERO
+    };
     let total = sum + gaps;
     // A wrapping row container is at least as large as its largest item (negative margins).
-    Ok(if is_row && ctx.flow.multiline { total.max(largest) } else { total })
+    Ok(if is_row && ctx.flow.multiline {
+        total.max(largest)
+    } else {
+        total
+    })
 }
 
 /// §9.9.2: the inner intrinsic cross size of a (column) container: the largest outer cross
@@ -700,7 +796,19 @@ where
                 known.set(main, Opt::some(it.hypothetical));
                 let mut available = Size::new(constraint, constraint);
                 available.set(main, Available::Definite(it.hypothetical));
-                let m = ask(pass, node, ctx, &it, paths, known, available, Size::new(false, false), false)?.0.get(cross);
+                let m = ask(
+                    pass,
+                    node,
+                    ctx,
+                    &it,
+                    paths,
+                    known,
+                    available,
+                    Size::new(false, false),
+                    false,
+                )?
+                .0
+                .get(cross);
                 match it.aspect_ratio.get() {
                     Some(r) => m.max(transfer_bb(content_box, it.pb, main, it.hypothetical, r)),
                     None => m,

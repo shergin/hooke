@@ -26,7 +26,11 @@ pub(crate) struct PassTable<V: Copy> {
 
 impl<V: Copy + Default> Default for PassTable<V> {
     fn default() -> Self {
-        PassTable { slots: Vec::new(), generation: 1, len: 0 }
+        PassTable {
+            slots: Vec::new(),
+            generation: 1,
+            len: 0,
+        }
     }
 }
 
@@ -47,7 +51,14 @@ impl<V: Copy + Default> PassTable<V> {
     #[inline]
     fn hash(addr: usize, key: &ConstraintKey) -> usize {
         let mut h: u64 = 0xcbf2_9ce4_8422_2325;
-        for w in [addr as u64, key.word(0) as u64, key.word(1) as u64, key.word(2) as u64, key.word(3) as u64, key.word(4) as u64] {
+        for w in [
+            addr as u64,
+            key.word(0) as u64,
+            key.word(1) as u64,
+            key.word(2) as u64,
+            key.word(3) as u64,
+            key.word(4) as u64,
+        ] {
             h ^= w;
             h = h.wrapping_mul(0x0100_0000_01b3);
         }
@@ -84,7 +95,12 @@ impl<V: Copy + Default> PassTable<V> {
         loop {
             let s = &mut self.slots[i];
             if s.generation != self.generation {
-                *s = Slot { generation: self.generation, addr, key, value };
+                *s = Slot {
+                    generation: self.generation,
+                    addr,
+                    key,
+                    value,
+                };
                 self.len += 1;
                 return;
             }

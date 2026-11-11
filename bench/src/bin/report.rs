@@ -59,7 +59,10 @@ fn sh(cmd: &str, args: &[&str]) -> String {
 
 /// Today's UTC date as `YYYY-MM-DD` (civil-from-days, Howard Hinnant).
 fn today() -> String {
-    let secs = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
     let z = (secs / 86_400) as i64 + 719_468;
     let era = z.div_euclid(146_097);
     let doe = z - era * 146_097;
@@ -73,7 +76,10 @@ fn today() -> String {
 }
 
 fn workspace() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).parent().expect("bench is inside the workspace").to_path_buf()
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("bench is inside the workspace")
+        .to_path_buf()
 }
 
 /// `$CARGO_TARGET_DIR/criterion`, default `target/criterion` at the workspace root. Cargo runs a
@@ -88,17 +94,28 @@ fn criterion_dir() -> PathBuf {
     }
     let at_root = workspace().join(&target).join("criterion");
     let at_bench = Path::new(env!("CARGO_MANIFEST_DIR")).join(&target).join("criterion");
-    if !at_root.exists() && at_bench.exists() { at_bench } else { at_root }
+    if !at_root.exists() && at_bench.exists() {
+        at_bench
+    } else {
+        at_root
+    }
 }
 
 /// The mean point estimate, in nanoseconds per iteration, of one benchmark.
 fn estimate(group: &str, id: &str, size: &str) -> Option<f64> {
-    let path = criterion_dir().join(group).join(id).join(size).join("new").join("estimates.json");
+    let path = criterion_dir()
+        .join(group)
+        .join(id)
+        .join(size)
+        .join("new")
+        .join("estimates.json");
     let text = std::fs::read_to_string(path).ok()?;
     let mean = &text[text.find("\"mean\"")?..];
     let pe = &mean[mean.find("\"point_estimate\"")? + "\"point_estimate\"".len()..];
     let pe = pe.trim_start().strip_prefix(':')?.trim_start();
-    let end = pe.find(|c: char| !(c.is_ascii_digit() || matches!(c, '.' | 'e' | 'E' | '-' | '+'))).unwrap_or(pe.len());
+    let end = pe
+        .find(|c: char| !(c.is_ascii_digit() || matches!(c, '.' | 'e' | 'E' | '-' | '+')))
+        .unwrap_or(pe.len());
     pe[..end].parse().ok()
 }
 
@@ -114,7 +131,13 @@ fn fmt_ns(v: f64) -> String {
 
 fn fmt_us(ns: f64) -> String {
     let us = ns / 1000.0;
-    if us >= 100.0 { format!("{us:.0}") } else if us >= 1.0 { format!("{us:.1}") } else { format!("{us:.3}") }
+    if us >= 100.0 {
+        format!("{us:.0}")
+    } else if us >= 1.0 {
+        format!("{us:.1}")
+    } else {
+        format!("{us:.3}")
+    }
 }
 
 fn short(v: &Verdict) -> String {
@@ -127,11 +150,20 @@ fn short(v: &Verdict) -> String {
 }
 
 /// The gate's verdict that `engine` was too slow on `key`, if it was.
-fn too_slow(gated: &BTreeMap<(&'static str, &'static str), Gated>, key: (&'static str, &'static str), engine: &str) -> Option<f64> {
-    gated.get(&key)?.rows.iter().find(|r| r.engine == engine).and_then(|r| match r.cold {
-        Verdict::TooSlow { seconds } => Some(seconds),
-        _ => None,
-    })
+fn too_slow(
+    gated: &BTreeMap<(&'static str, &'static str), Gated>,
+    key: (&'static str, &'static str),
+    engine: &str,
+) -> Option<f64> {
+    gated
+        .get(&key)?
+        .rows
+        .iter()
+        .find(|r| r.engine == engine)
+        .and_then(|r| match r.cold {
+            Verdict::TooSlow { seconds } => Some(seconds),
+            _ => None,
+        })
 }
 
 /// One gate cell: cold, edit, resize.
@@ -195,7 +227,11 @@ fn memory<E: Engine>(w: &Workload) -> Result<Mem, String> {
         })
     }))
     .unwrap_or_else(|p| {
-        Err(p.downcast_ref::<&str>().map(|s| s.to_string()).or_else(|| p.downcast_ref::<String>().cloned()).unwrap_or_default())
+        Err(p
+            .downcast_ref::<&str>()
+            .map(|s| s.to_string())
+            .or_else(|| p.downcast_ref::<String>().cloned())
+            .unwrap_or_default())
     })
 }
 
@@ -219,7 +255,9 @@ fn measure_calls<E: Engine>(w: &Workload) -> Option<u64> {
 
 fn main() {
     // Local date where `date` exists, else UTC.
-    let date = Some(sh("date", &["+%F"])).filter(|d| d.len() == 10).unwrap_or_else(today);
+    let date = Some(sh("date", &["+%F"]))
+        .filter(|d| d.len() == 10)
+        .unwrap_or_else(today);
     let mut out = String::new();
     let quick = std::env::var("HOOKE_BENCH_QUICK").is_ok_and(|v| v != "0" && !v.is_empty());
 
@@ -243,7 +281,13 @@ fn main() {
     let ran: Vec<&str> = ENGINES
         .iter()
         .copied()
-        .filter(|e| gated.values().any(|g| g.rows.iter().any(|r| r.engine == *e && !matches!(r.cold, Verdict::DidNotRun(_)))))
+        .filter(|e| {
+            gated.values().any(|g| {
+                g.rows
+                    .iter()
+                    .any(|r| r.engine == *e && !matches!(r.cold, Verdict::DidNotRun(_)))
+            })
+        })
         .collect();
 
     writeln!(out, "# hooke benchmarks, {date}\n").unwrap();
@@ -284,7 +328,11 @@ fn main() {
                     if let Verdict::DidNotRun(reason) = &r.cold {
                         did_not_run.entry(r.engine).or_insert_with(|| reason.clone());
                     }
-                    for (phase, v) in [("cold", Some(&r.cold)), ("edit", r.edit.as_ref()), ("resize", Some(&r.resize))] {
+                    for (phase, v) in [
+                        ("cold", Some(&r.cold)),
+                        ("edit", r.edit.as_ref()),
+                        ("resize", Some(&r.resize)),
+                    ] {
                         if let Some(v @ Verdict::Differs { .. }) = v {
                             details.push(format!("- {} {} {}, {phase}: {}", key.0, key.1, r.engine, v.cell()));
                         }
@@ -294,10 +342,22 @@ fn main() {
                 None => "not compiled".into(),
             })
             .collect();
-        writeln!(out, "| {} | {} | {} | {} |", key.0, key.1, g.w.scene.len(), cells.join(" | ")).unwrap();
+        writeln!(
+            out,
+            "| {} | {} | {} | {} |",
+            key.0,
+            key.1,
+            g.w.scene.len(),
+            cells.join(" | ")
+        )
+        .unwrap();
     }
     if !details.is_empty() {
-        writeln!(out, "\nDifferences (first differing node; hooke's frame, then the other engine's, as x, y, width x height):\n").unwrap();
+        writeln!(
+            out,
+            "\nDifferences (first differing node; hooke's frame, then the other engine's, as x, y, width x height):\n"
+        )
+        .unwrap();
         for d in &details {
             writeln!(out, "{d}").unwrap();
         }
@@ -307,11 +367,31 @@ fn main() {
     // ---- timings ---------------------------------------------------------------------------
     let groups = workloads::groups();
     let families = [
-        ("cold", "Cold layout", "One cold layout of the whole tree per iteration (hooke and Taffy invalidate every node between iterations, untimed; other engines are rebuilt). ns per node."),
-        ("deep", "Deep auto-sized nesting", "Cold layout of auto-sized nesting: `deep_chain` (a chain alternating row and column, one text leaf) and `deep_branch` (fan-out 2 to 3, text leaves). ns per node."),
-        ("text", "Text-heavy tree", "Cold layout of ten columns of wrapping paragraphs. ns per node, and measure callbacks per text leaf during one cold layout."),
-        ("edit", "Incremental relayout after one text edit", "One `set_text` of a leaf about halfway through pre-order plus `layout`, against warm caches. hooke forks the committed revision and path-copies; Taffy marks dirty; Cephal and Yoga use their own invalidation. ns per node of the whole tree, and microseconds per edit."),
-        ("resize", "Root resize", "Viewport width changed by 10% (alternating), then `layout` with warm caches. ns per node, and microseconds per resize."),
+        (
+            "cold",
+            "Cold layout",
+            "One cold layout of the whole tree per iteration (hooke and Taffy invalidate every node between iterations, untimed; other engines are rebuilt). ns per node.",
+        ),
+        (
+            "deep",
+            "Deep auto-sized nesting",
+            "Cold layout of auto-sized nesting: `deep_chain` (a chain alternating row and column, one text leaf) and `deep_branch` (fan-out 2 to 3, text leaves). ns per node.",
+        ),
+        (
+            "text",
+            "Text-heavy tree",
+            "Cold layout of ten columns of wrapping paragraphs. ns per node, and measure callbacks per text leaf during one cold layout.",
+        ),
+        (
+            "edit",
+            "Incremental relayout after one text edit",
+            "One `set_text` of a leaf about halfway through pre-order plus `layout`, against warm caches. hooke forks the committed revision and path-copies; Taffy marks dirty; Cephal and Yoga use their own invalidation. ns per node of the whole tree, and microseconds per edit.",
+        ),
+        (
+            "resize",
+            "Root resize",
+            "Viewport width changed by 10% (alternating), then `layout` with warm caches. ns per node, and microseconds per resize.",
+        ),
     ];
     let mut excluded: Vec<String> = Vec::new();
     for (family, title, blurb) in families {
@@ -334,9 +414,22 @@ fn main() {
     )
     .unwrap();
     for g in groups.iter().filter(|g| g.family == "candidates") {
-        let sizes: Vec<(&str, usize)> = order.iter().filter(|k| k.0 == g.workload).map(|k| (k.1, gated[k].w.scene.len())).collect();
+        let sizes: Vec<(&str, usize)> = order
+            .iter()
+            .filter(|k| k.0 == g.workload)
+            .map(|k| (k.1, gated[k].w.scene.len()))
+            .collect();
         writeln!(out, "### {}\n", g.group).unwrap();
-        writeln!(out, "| operation | {} |", sizes.iter().map(|s| format!("{} ({} nodes)", s.0, s.1)).collect::<Vec<_>>().join(" | ")).unwrap();
+        writeln!(
+            out,
+            "| operation | {} |",
+            sizes
+                .iter()
+                .map(|s| format!("{} ({} nodes)", s.0, s.1))
+                .collect::<Vec<_>>()
+                .join(" | ")
+        )
+        .unwrap();
         writeln!(out, "|---|{}", "---:|".repeat(sizes.len())).unwrap();
         for id in CANDIDATE_IDS {
             let cells: Vec<String> = sizes
@@ -362,17 +455,28 @@ fn main() {
              requested during one `set_text` plus `layout`.\n"
         )
         .unwrap();
-        writeln!(out, "| workload | size | engine | bytes/node | warm allocs | edit allocs | edit bytes |").unwrap();
+        writeln!(
+            out,
+            "| workload | size | engine | bytes/node | warm allocs | edit allocs | edit bytes |"
+        )
+        .unwrap();
         writeln!(out, "|---|---|---|---:|---:|---:|---:|").unwrap();
-        let mem_set: [(&'static str, &'static str); 5] =
-            [("fit_nesting", "10k"), ("random", "10k"), ("text", "10k"), ("random", "100k"), ("text", "100k")];
+        let mem_set: [(&'static str, &'static str); 5] = [
+            ("fit_nesting", "10k"),
+            ("random", "10k"),
+            ("text", "10k"),
+            ("random", "100k"),
+            ("text", "100k"),
+        ];
         for (name, size) in mem_set {
             if quick && size == "100k" {
                 continue;
             }
             let w = workloads::make(name, size);
-            let mut res: Vec<(&str, Result<Mem, String>)> =
-                vec![("hooke", memory_if::<HookeEngine>(&gated, &w)), ("taffy", memory_if::<TaffyEngine>(&gated, &w))];
+            let mut res: Vec<(&str, Result<Mem, String>)> = vec![
+                ("hooke", memory_if::<HookeEngine>(&gated, &w)),
+                ("taffy", memory_if::<TaffyEngine>(&gated, &w)),
+            ];
             #[cfg(feature = "yoga")]
             res.push(("yoga", memory_if::<hooke_bench::engines::yoga::YogaEngine>(&gated, &w)));
             res.push(("cephal", memory_if::<CephalEngine>(&gated, &w)));
@@ -383,18 +487,32 @@ fn main() {
                         "| {name} | {size} | {engine} | {:.0} | {} | {} | {} |",
                         m.bytes_per_node,
                         m.warm_allocs,
-                        if w.edit.is_some() { m.edit_allocs.to_string() } else { "n/a".into() },
-                        if w.edit.is_some() { m.edit_bytes.to_string() } else { "n/a".into() },
+                        if w.edit.is_some() {
+                            m.edit_allocs.to_string()
+                        } else {
+                            "n/a".into()
+                        },
+                        if w.edit.is_some() {
+                            m.edit_bytes.to_string()
+                        } else {
+                            "n/a".into()
+                        },
                     )
                     .unwrap(),
-                    Err(e) if e.starts_with("too slow") => writeln!(out, "| {name} | {size} | {engine} | {e} | | | |").unwrap(),
+                    Err(e) if e.starts_with("too slow") => {
+                        writeln!(out, "| {name} | {size} | {engine} | {e} | | | |").unwrap()
+                    }
                     Err(_) => writeln!(out, "| {name} | {size} | {engine} | did not run | | | |").unwrap(),
                 }
             }
         }
         writeln!(out).unwrap();
     } else {
-        writeln!(out, "The counting allocator is not installed in this binary; no memory numbers.\n").unwrap();
+        writeln!(
+            out,
+            "The counting allocator is not installed in this binary; no memory numbers.\n"
+        )
+        .unwrap();
     }
 
     // ---- machine ---------------------------------------------------------------------------
@@ -403,15 +521,25 @@ fn main() {
     writeln!(out, "- CPU: {}", sh("sysctl", &["-n", "machdep.cpu.brand_string"])).unwrap();
     writeln!(out, "- logical CPUs: {}", sh("sysctl", &["-n", "hw.ncpu"])).unwrap();
     let mem = sh("sysctl", &["-n", "hw.memsize"]);
-    let mem_gib = mem.parse::<f64>().map(|b| format!(" ({:.0} GiB)", b / (1u64 << 30) as f64)).unwrap_or_default();
+    let mem_gib = mem
+        .parse::<f64>()
+        .map(|b| format!(" ({:.0} GiB)", b / (1u64 << 30) as f64))
+        .unwrap_or_default();
     writeln!(out, "- memory: {mem} bytes{mem_gib}").unwrap();
     writeln!(out, "- toolchain: {}", sh("rustc", &["-V"])).unwrap();
     writeln!(
         out,
         "- engines: hooke {} (workspace, commit {}), taffy 0.15.1, cephal 0.2.0, yoga 0.5.0 ({})",
         env!("CARGO_PKG_VERSION"),
-        sh("git", &["-C", &workspace().display().to_string(), "rev-parse", "--short", "HEAD"]),
-        if cfg!(feature = "yoga") { "compiled in" } else { "not compiled: build with `--features yoga`" }
+        sh(
+            "git",
+            &["-C", &workspace().display().to_string(), "rev-parse", "--short", "HEAD"]
+        ),
+        if cfg!(feature = "yoga") {
+            "compiled in"
+        } else {
+            "not compiled: build with `--features yoga`"
+        }
     )
     .unwrap();
     writeln!(out, "- profile: release; rounding disabled in every engine; the counting allocator is installed in the bench binary too\n").unwrap();
@@ -424,12 +552,25 @@ fn main() {
          are wall-clock (criterion)."
     )
     .unwrap();
-    writeln!(out, "- arewelayoutyet's `percentage_and_ratio` is not ported: the scene's style subset has no `aspect-ratio`.").unwrap();
+    writeln!(
+        out,
+        "- arewelayoutyet's `percentage_and_ratio` is not ported: the scene's style subset has no `aspect-ratio`."
+    )
+    .unwrap();
     if !cfg!(feature = "yoga") {
-        writeln!(out, "- Yoga is not compiled into this build (`--features yoga` needs a C++ toolchain and libclang).").unwrap();
+        writeln!(
+            out,
+            "- Yoga is not compiled into this build (`--features yoga` needs a C++ toolchain and libclang)."
+        )
+        .unwrap();
     }
     for (engine, reason) in &did_not_run {
-        writeln!(out, "- {engine} did not run: `{}`.", reason.lines().next().unwrap_or("")).unwrap();
+        writeln!(
+            out,
+            "- {engine} did not run: `{}`.",
+            reason.lines().next().unwrap_or("")
+        )
+        .unwrap();
     }
     for e in &excluded {
         writeln!(out, "- {e}").unwrap();
@@ -455,8 +596,11 @@ fn write_group(
     text: bool,
     excluded: &mut Vec<String>,
 ) {
-    let sizes: Vec<&'static str> =
-        workloads::sizes(g.workload).iter().map(|s| s.0).filter(|s| gated.contains_key(&(g.workload, *s))).collect();
+    let sizes: Vec<&'static str> = workloads::sizes(g.workload)
+        .iter()
+        .map(|s| s.0)
+        .filter(|s| gated.contains_key(&(g.workload, *s)))
+        .collect();
     writeln!(out, "### {}\n", g.group).unwrap();
     let mut header = vec!["engine".to_string()];
     for s in &sizes {
@@ -482,7 +626,11 @@ fn write_group(
                     if !reason.starts_with("did not run") {
                         excluded.push(format!("{engine} excluded from {}/{size}: {reason}", g.group));
                     }
-                    return if reason.starts_with("did not run") { "did not run".into() } else { "excluded (gate)".into() };
+                    return if reason.starts_with("did not run") {
+                        "did not run".into()
+                    } else {
+                        "excluded (gate)".into()
+                    };
                 }
                 match estimate(g.group, engine, size) {
                     Some(ns) if per_op => format!("{} ns/node, {} us", fmt_ns(ns / nodes), fmt_us(ns)),
@@ -506,7 +654,8 @@ fn write_group(
                     if too_slow(gated, (g.workload, *s), engine).is_some() {
                         return "not sampled (too slow)".into();
                     }
-                    f(w).map(|c| format!("{:.2}", c as f64 / leaves)).unwrap_or_else(|| "did not run".into())
+                    f(w).map(|c| format!("{:.2}", c as f64 / leaves))
+                        .unwrap_or_else(|| "did not run".into())
                 })
                 .collect();
             writeln!(out, "| {engine} | {} |", cells.join(" | ")).unwrap();
@@ -523,7 +672,9 @@ fn write_group(
 /// A first draft of the plain-language reading, computed from the numbers.
 fn reading(groups: &[Group], gated: &BTreeMap<(&'static str, &'static str), Gated>) -> String {
     let mut s = String::new();
-    let ratio = |group: &str, size: &str| -> Option<f64> { Some(estimate(group, "hooke", size)? / estimate(group, "taffy", size)?) };
+    let ratio = |group: &str, size: &str| -> Option<f64> {
+        Some(estimate(group, "hooke", size)? / estimate(group, "taffy", size)?)
+    };
     let mut cold = Vec::new();
     for g in groups.iter().filter(|g| matches!(g.family, "cold" | "deep" | "text")) {
         for &(size, _) in workloads::sizes(g.workload) {
@@ -598,7 +749,10 @@ fn reading(groups: &[Group], gated: &BTreeMap<(&'static str, &'static str), Gate
             parts.join("; ")
         );
     }
-    let differs: usize = gated.values().filter(|g| g.rows.iter().any(|r| matches!(r.cold, Verdict::Differs { .. }))).count();
+    let differs: usize = gated
+        .values()
+        .filter(|g| g.rows.iter().any(|r| matches!(r.cold, Verdict::Differs { .. })))
+        .count();
     let _ = writeln!(
         s,
         "- **Equal output.** {differs} of {} workload sizes had at least one engine differ from hooke on the cold layout; \

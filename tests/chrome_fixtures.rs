@@ -47,7 +47,9 @@ fn fixtures_dir() -> PathBuf {
 
 /// `name<TAB>reason` lines; blank lines and `#` comments are ignored.
 fn read_list(path: &Path) -> BTreeMap<String, String> {
-    let Ok(text) = std::fs::read_to_string(path) else { return BTreeMap::new() };
+    let Ok(text) = std::fs::read_to_string(path) else {
+        return BTreeMap::new();
+    };
     text.lines()
         .filter(|l| !l.trim().is_empty() && !l.starts_with('#'))
         .map(|l| match l.split_once('\t') {
@@ -65,8 +67,11 @@ fn lay_out(fixture: &Fixture) -> Handle<Node> {
         Direction::Rtl => Direction::Rtl,
         _ => Direction::Ltr,
     };
-    let constraints =
-        RootConstraints { available: fixture.available, known: Size::new(Opt::NONE, Opt::NONE), direction };
+    let constraints = RootConstraints {
+        available: fixture.available,
+        known: Size::new(Opt::NONE, Opt::NONE),
+        direction,
+    };
     let mut scratch = Scratch::new();
     let mut cx = LayoutCx::new(&mut scratch);
     let mut shaper = Shaper { calls: 0 };
@@ -103,7 +108,11 @@ fn compare(fixture: &Fixture, root: &Handle<Node>) -> Vec<Row> {
             [ex, ey]
         } else {
             let cb = if f.style.position() == Position::Absolute {
-                ancestors.iter().rev().find(|a| a.position != Position::Static).unwrap_or(&ancestors[0])
+                ancestors
+                    .iter()
+                    .rev()
+                    .find(|a| a.position != Position::Static)
+                    .unwrap_or(&ancestors[0])
             } else {
                 ancestors.last().unwrap()
             };
@@ -118,14 +127,34 @@ fn compare(fixture: &Fixture, root: &Handle<Node>) -> Vec<Row> {
         } else {
             hooke::Rect::new(unrounded, size)
         };
-        let expected = [expected_abs[0] - parent_expected_abs[0], expected_abs[1] - parent_expected_abs[1], ew, eh];
-        let actual =
-            [actual_abs.x - rounded_parent.x, actual_abs.y - rounded_parent.y, actual_abs.width, actual_abs.height];
+        let expected = [
+            expected_abs[0] - parent_expected_abs[0],
+            expected_abs[1] - parent_expected_abs[1],
+            ew,
+            eh,
+        ];
+        let actual = [
+            actual_abs.x - rounded_parent.x,
+            actual_abs.y - rounded_parent.y,
+            actual_abs.width,
+            actual_abs.height,
+        ];
         let hidden = f.style.display() == Display::None;
         let tolerance = if rounding { TOLERANCE } else { UNROUNDED_TOLERANCE };
         let close = |i: usize| (expected[i] - actual[i]).abs() <= tolerance;
-        let ok = if hidden { close(2) && close(3) } else { (0..4).all(close) };
-        out.push(Row { path: path.clone(), props: f.props.clone(), expected, actual, size_only: hidden, ok });
+        let ok = if hidden {
+            close(2) && close(3)
+        } else {
+            (0..4).all(close)
+        };
+        out.push(Row {
+            path: path.clone(),
+            props: f.props.clone(),
+            expected,
+            actual,
+            size_only: hidden,
+            ok,
+        });
         if hidden {
             // Nothing inside a `display: none` subtree has a box.
             return;
@@ -141,7 +170,10 @@ fn compare(fixture: &Fixture, root: &Handle<Node>) -> Vec<Row> {
             });
             return;
         }
-        ancestors.push(Anc { position: f.style.position(), expected_abs });
+        ancestors.push(Anc {
+            position: f.style.position(),
+            expected_abs,
+        });
         for (i, (fc, slot)) in f.children.iter().zip(n.children.iter()).enumerate() {
             walk(
                 fc,
@@ -158,7 +190,16 @@ fn compare(fixture: &Fixture, root: &Handle<Node>) -> Vec<Row> {
     }
     let mut out = Vec::new();
     let origin = Point::new(fixture.root.expected[0], fixture.root.expected[1]);
-    walk(&fixture.root, root, "root".into(), &mut Vec::new(), (Point::ZERO, Point::ZERO), origin, fixture.rounding, &mut out);
+    walk(
+        &fixture.root,
+        root,
+        "root".into(),
+        &mut Vec::new(),
+        (Point::ZERO, Point::ZERO),
+        origin,
+        fixture.rounding,
+        &mut out,
+    );
     out
 }
 
@@ -211,7 +252,13 @@ fn run_one(name: &str, src: &str, verbose: bool) -> Outcome {
     let ok = rows.iter().all(|r| r.ok);
     if verbose {
         eprintln!("== {name} [{}]\n{}", if ok { "pass" } else { "FAIL" }, fixture.source);
-        eprintln!("-- fixture\n{}", src.lines().filter(|l| l.trim_start().starts_with("node")).collect::<Vec<_>>().join("\n"));
+        eprintln!(
+            "-- fixture\n{}",
+            src.lines()
+                .filter(|l| l.trim_start().starts_with("node"))
+                .collect::<Vec<_>>()
+                .join("\n")
+        );
         eprintln!("-- hooke style tree");
         support::dump_tree(&root, 0);
         eprintln!("-- frames relative to the parent (x, y, w x h)");
@@ -222,12 +269,20 @@ fn run_one(name: &str, src: &str, verbose: bool) -> Outcome {
                 r.path,
                 frame(r.expected),
                 frame(r.actual),
-                if r.size_only { "(display: none, size only)" } else { r.props.as_str() }
+                if r.size_only {
+                    "(display: none, size only)"
+                } else {
+                    r.props.as_str()
+                }
             );
         }
         eprintln!();
     }
-    if ok { Outcome::Pass } else { Outcome::Fail(first_difference(&rows)) }
+    if ok {
+        Outcome::Pass
+    } else {
+        Outcome::Fail(first_difference(&rows))
+    }
 }
 
 #[test]
@@ -239,7 +294,9 @@ fn chrome_fixtures() {
 
     let mut files = Vec::new();
     for sub in DIRS {
-        let Ok(entries) = std::fs::read_dir(dir.join(sub)) else { continue };
+        let Ok(entries) = std::fs::read_dir(dir.join(sub)) else {
+            continue;
+        };
         for e in entries {
             let path = e.unwrap().path();
             if path.extension().is_some_and(|x| x == "txt") {
@@ -253,7 +310,10 @@ fn chrome_fixtures() {
 
     let expected_failures_path = dir.join("expected_failures.txt");
     let expected_failures = read_list(&expected_failures_path);
-    let skipped = read_list(&dir.join("skipped.txt")).into_keys().filter(|n| matches(n)).count();
+    let skipped = read_list(&dir.join("skipped.txt"))
+        .into_keys()
+        .filter(|n| matches(n))
+        .count();
 
     // Silence the default panic message of fixtures that panic inside the engine; the panic is
     // reported as that fixture's failure.
@@ -271,9 +331,15 @@ fn chrome_fixtures() {
 
     let passed = results.values().filter(|o| matches!(o, Outcome::Pass)).count();
     let failed = results.len() - passed;
-    let expected_count =
-        results.iter().filter(|(n, o)| matches!(o, Outcome::Fail(_)) && expected_failures.contains_key(*n)).count();
-    let rate = if results.is_empty() { 0.0 } else { 100.0 * passed as f64 / results.len() as f64 };
+    let expected_count = results
+        .iter()
+        .filter(|(n, o)| matches!(o, Outcome::Fail(_)) && expected_failures.contains_key(*n))
+        .count();
+    let rate = if results.is_empty() {
+        0.0
+    } else {
+        100.0 * passed as f64 / results.len() as f64
+    };
     println!(
         "chrome fixtures: {passed} passed, {failed} failed ({expected_count} expected), {skipped} skipped; \
          pass rate {rate:.1}% of in-scope"
@@ -281,11 +347,17 @@ fn chrome_fixtures() {
 
     if update {
         // Entries outside the filter are kept as they are.
-        let mut list: BTreeMap<String, String> =
-            expected_failures.iter().filter(|(n, _)| !matches(n)).map(|(n, r)| (n.clone(), r.clone())).collect();
+        let mut list: BTreeMap<String, String> = expected_failures
+            .iter()
+            .filter(|(n, _)| !matches(n))
+            .map(|(n, r)| (n.clone(), r.clone()))
+            .collect();
         for (name, outcome) in &results {
             if let Outcome::Fail(_) = outcome {
-                let reason = expected_failures.get(name).cloned().unwrap_or_else(|| "unexplained".into());
+                let reason = expected_failures
+                    .get(name)
+                    .cloned()
+                    .unwrap_or_else(|| "unexplained".into());
                 list.insert(name.clone(), reason);
             }
         }
@@ -297,7 +369,11 @@ fn chrome_fixtures() {
             text.push_str(&format!("{n}\t{r}\n"));
         }
         std::fs::write(&expected_failures_path, text).unwrap();
-        println!("rewrote {} with {} entries", expected_failures_path.display(), list.len());
+        println!(
+            "rewrote {} with {} entries",
+            expected_failures_path.display(),
+            list.len()
+        );
         return;
     }
 
@@ -314,7 +390,9 @@ fn chrome_fixtures() {
     let known: std::collections::BTreeSet<&str> = files.iter().map(|(n, _)| n.as_str()).collect();
     for name in expected_failures.keys() {
         if matches(name) && !known.contains(name.as_str()) {
-            problems.push(format!("STALE (listed in expected_failures.txt but no such fixture) {name}"));
+            problems.push(format!(
+                "STALE (listed in expected_failures.txt but no such fixture) {name}"
+            ));
         }
     }
     if !problems.is_empty() {

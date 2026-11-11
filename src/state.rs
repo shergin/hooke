@@ -69,11 +69,18 @@ impl ConstraintKey {
 
     #[inline]
     pub(crate) fn new(axis: [u32; 2], parent: [u32; 2], flags: u32) -> Self {
-        ConstraintKey { axis, parent, flags: flags & !Self::VALID }
+        ConstraintKey {
+            axis,
+            parent,
+            flags: flags & !Self::VALID,
+        }
     }
     #[inline]
     fn valid(self) -> Self {
-        ConstraintKey { flags: self.flags | Self::VALID, ..self }
+        ConstraintKey {
+            flags: self.flags | Self::VALID,
+            ..self
+        }
     }
     /// The key with the containing-block size removed, for nodes whose answer cannot depend on it.
     #[inline]
@@ -94,12 +101,18 @@ impl ConstraintKey {
     /// The key with `flag` set.
     #[inline]
     pub(crate) fn with_flag(self, flag: u32) -> Self {
-        ConstraintKey { flags: self.flags | (flag & !Self::VALID), ..self }
+        ConstraintKey {
+            flags: self.flags | (flag & !Self::VALID),
+            ..self
+        }
     }
     /// The same constraints asked as a final layout rather than a size query.
     #[inline]
     pub(crate) fn as_final(self) -> Self {
-        ConstraintKey { flags: self.flags & !Self::COMPUTE_SIZE, ..self }
+        ConstraintKey {
+            flags: self.flags & !Self::COMPUTE_SIZE,
+            ..self
+        }
     }
     #[inline]
     fn known(&self, axis: usize) -> bool {
@@ -155,7 +168,15 @@ struct Entry<S: Scalar> {
 }
 
 impl<S: Scalar> Entry<S> {
-    const EMPTY: Self = Entry { key: ConstraintKey { axis: [0; 2], parent: [0; 2], flags: 0 }, size: Size::ZERO, baseline: Opt::NONE };
+    const EMPTY: Self = Entry {
+        key: ConstraintKey {
+            axis: [0; 2],
+            parent: [0; 2],
+            flags: 0,
+        },
+        size: Size::ZERO,
+        baseline: Opt::NONE,
+    };
 }
 
 const F_KIND: u32 = 0b11;
@@ -285,7 +306,10 @@ impl<S: Scalar, const K: usize> LayoutState<S, K> {
     #[inline]
     pub(crate) fn slot(&self, key: &ConstraintKey) -> Option<(Size<S>, Opt<S>)> {
         let k = key.valid();
-        self.slots[..self.used as usize].iter().find(|e| e.key == k).map(|e| (e.size, e.baseline))
+        self.slots[..self.used as usize]
+            .iter()
+            .find(|e| e.key == k)
+            .map(|e| (e.size, e.baseline))
     }
     /// Like [`slot`](Self::slot) but also accepts entries that answer `key` under Yoga's
     /// relaxed rules. Only sound for measured leaves, whose answers depend on nothing but their
@@ -297,16 +321,31 @@ impl<S: Scalar, const K: usize> LayoutState<S, K> {
         let k = key.valid();
         let new = [AxisConstraint::<S>::decode(&k, 0)?, AxisConstraint::<S>::decode(&k, 1)?];
         for e in self.slots[..self.used as usize].iter() {
-            if e.key.parent != k.parent || (e.key.flags ^ k.flags) & !(ConstraintKey::KNOWN_W | ConstraintKey::KNOWN_H) != 0 {
+            if e.key.parent != k.parent
+                || (e.key.flags ^ k.flags) & !(ConstraintKey::KNOWN_W | ConstraintKey::KNOWN_H) != 0
+            {
                 continue;
             }
-            let (Some(old_w), Some(old_h)) = (AxisConstraint::<S>::decode(&e.key, 0), AxisConstraint::<S>::decode(&e.key, 1)) else {
+            let (Some(old_w), Some(old_h)) = (
+                AxisConstraint::<S>::decode(&e.key, 0),
+                AxisConstraint::<S>::decode(&e.key, 1),
+            ) else {
                 continue;
             };
-            if AxisConstraint::compatible(new[0], old_w, e.size.width) && AxisConstraint::compatible(new[1], old_h, e.size.height) {
+            if AxisConstraint::compatible(new[0], old_w, e.size.width)
+                && AxisConstraint::compatible(new[1], old_h, e.size.height)
+            {
                 let size = Size::new(
-                    if let AxisConstraint::Known(v) = new[0] { v } else { e.size.width },
-                    if let AxisConstraint::Known(v) = new[1] { v } else { e.size.height },
+                    if let AxisConstraint::Known(v) = new[0] {
+                        v
+                    } else {
+                        e.size.width
+                    },
+                    if let AxisConstraint::Known(v) = new[1] {
+                        v
+                    } else {
+                        e.size.height
+                    },
                 );
                 return Some((size, e.baseline));
             }
@@ -314,11 +353,19 @@ impl<S: Scalar, const K: usize> LayoutState<S, K> {
         None
     }
     pub(crate) fn record_memo(&mut self, key: ConstraintKey, size: Size<S>, baseline: Opt<S>) {
-        self.memo = Entry { key: key.valid(), size, baseline };
+        self.memo = Entry {
+            key: key.valid(),
+            size,
+            baseline,
+        };
     }
     /// Records a measurement answer, evicting round-robin once the slots are full.
     pub(crate) fn record_slot(&mut self, key: ConstraintKey, size: Size<S>, baseline: Opt<S>) {
-        let e = Entry { key: key.valid(), size, baseline };
+        let e = Entry {
+            key: key.valid(),
+            size,
+            baseline,
+        };
         if (self.used as usize) < K {
             self.slots[self.used as usize] = e;
             self.used += 1;
