@@ -1,13 +1,20 @@
 [package]
 name = "hooke"
-version = "0.0.0"
+version = "0.1.0"
 edition = "2024"
+rust-version = "1.88"
 description = "A flexbox-only layout engine for persistent, copy-on-write UI trees, focused on concurrent rendering."
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/shergin/hooke"
 readme = "README.md"
 keywords = ["flexbox", "layout", "concurrent", "rendering", "ui"]
 categories = ["gui", "rendering", "no-std"]
+documentation = "https://docs.rs/hooke"
+# The test suite needs the 2500 fixtures under `tests/fixtures`; neither is shipped.
+exclude = ["/tests", "/tools", "/.github", "/CLAUDE.md"]
+
+[package.metadata.docs.rs]
+all-features = true
 
 [features]
 default = ["std", "sync"]
@@ -17,6 +24,8 @@ std = []
 # for single-core targets without atomic compare-and-swap.
 sync = []
 # Two persistent measurement slots per node instead of four (128 bytes instead of 192).
+# This changes the size of `LayoutState` for every crate in the build, so only the final
+# application should enable it, never a library.
 slots-2 = []
 # Implements `Scalar` for `f64`. Compiled and tested, not optimised.
 f64 = []

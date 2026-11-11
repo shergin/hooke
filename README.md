@@ -1,5 +1,8 @@
 # hooke
 
+[![crates.io](https://img.shields.io/crates/v/hooke.svg)](https://crates.io/crates/hooke)
+[![docs.rs](https://docs.rs/hooke/badge.svg)](https://docs.rs/hooke)
+
 A new FlexBox layout library in Rust, focused on concurrent rendering.
 
 `hooke` is a flexbox-only layout engine for persistent, copy-on-write UI trees.
@@ -11,7 +14,9 @@ allocates a node and never owns the tree. It reads and writes your nodes through
 `LayoutNode`, and dictates the type of exactly two fields in them: the child list,
 `Children`, and the per-node layout state, `LayoutState`.
 
-The crate is `no_std` with `alloc`, has no dependencies and forbids `unsafe`.
+The crate is `no_std` with `alloc`, has no dependencies and forbids `unsafe`. Add it with
+`cargo add hooke`, or `hooke = "0.1"` under `[dependencies]`. The minimum supported Rust
+version is 1.88.
 
 ## The four rules
 
@@ -67,9 +72,9 @@ pointer-equal subtrees; and cancellation.
 
 ## Status
 
-**Phase 1.** The storage layer and the host contract are complete: copy-on-write child lists,
-per-node layout state, the invalidation rules, the in-node and shared measurement caches and
-the concurrency contract.
+This is an early 0.1 release: the API may change before 1.0. The storage layer and the host
+contract are complete: copy-on-write child lists, per-node layout state, the invalidation
+rules, the in-node and shared measurement caches and the concurrency contract.
 
 The container algorithm is the complete CSS Flexible Box Layout Level 1 algorithm: `order`,
 `display: none` and `display: contents`, both `box-sizing` values, `direction: rtl` and the
@@ -93,12 +98,17 @@ positioned children whose containing block is not their parent.
 |---|---|---|
 | `std` | on | `std::error::Error` impls and `SharedMeasureCache` |
 | `sync` | on | `Handle` is `Arc` and nodes are `Send + Sync`; off means `Rc` |
-| `slots-2` | off | Two persistent measurement slots per node instead of four |
+| `slots-2` | off | Two persistent measurement slots per node instead of four (see below) |
 | `f64` | off | `Scalar` for `f64` |
 
 Without `sync` the crate builds for single-core targets without atomic compare-and-swap.
+`slots-2` changes the size of `LayoutState` for every crate in the build, so only the final
+application should enable it, never a library.
 
 ## Running
+
+The tests and their 2500 fixtures are not part of the published package; run them from a git
+checkout.
 
 ```sh
 cargo test                                            # unit, Chrome fixture, persistence and oracle tests
@@ -111,4 +121,9 @@ cargo build --no-default-features                     # no_std, Rc handles
 
 ## License
 
-MIT OR Apache-2.0.
+Licensed under either of the [MIT license](LICENSE-MIT) or the
+[Apache License, Version 2.0](LICENSE-APACHE), at your option.
+
+Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion
+in this crate by you, as defined in the Apache-2.0 license, shall be dual licensed as above,
+without any additional terms or conditions.
