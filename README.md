@@ -68,9 +68,32 @@ It was written to bring that kind of rendering to Rust, and it does nothing else
 | Language | Rust, no `unsafe` | Rust | C++ |
 
 A fork costs a handle clone instead of a tree copy, and a relayout after an edit reuses the
-answer of every subtree the edit did not reach. [`bench/`](bench/README.md) measures both
-against Taffy, Yoga and Cephal, and checks that the engines produce the same layout before it
-times them.
+answer of every subtree the edit did not reach.
+
+## Benchmarks
+
+Cold layout of the [arewelayoutyet](https://github.com/marc2332/arewelayoutyet) workloads,
+`hooke` 0.1.0 against the two established flexbox engines. Times are for `hooke`; the other
+columns say how much longer the same tree takes.
+
+| Workload | Nodes | hooke | Taffy | Yoga |
+|---|---:|---:|---:|---:|
+| `flex_expand_weights` | 15,001 | 1.70 ms | 2.8x slower | 4.7x slower |
+| `flex_expand_equal_weights` | 15,001 | 1.44 ms | 2.6x slower | 6.1x slower |
+| `wide_no_wrap_simple_many` | 100,001 | 15.6 ms | 2.4x slower | 4.1x slower |
+| `wide_wrapping` | 10,001 | 0.87 ms | 2.3x slower | 19x slower |
+| `nested_vertical_stack` | 10,001 | 0.95 ms | 2.2x slower | 4.8x slower |
+| `fit_nesting` | 101,111 | 19.5 ms | 2.0x slower | 5.0x slower |
+| **All 13 workloads, geometric mean** | | | **2.1x slower** | **5.1x slower** |
+
+`hooke` is faster on every one of the 13 workloads: by 1.6x to 2.8x against Taffy and by 2.0x
+to 45x against Yoga. Measured on an Apple M1 Pro with Taffy at its `main` branch (0.15) and
+Yoga through `yoga` 0.5. Taffy and Yoga round to the pixel grid during layout; `hooke` leaves
+that to `snap`.
+
+This is the case `hooke` is not designed around: one tree, laid out once, from nothing. Forks
+and edits are where the storage model pays, and [`bench/`](bench/README.md) measures those
+after checking that the engines produce the same layout.
 
 ## Flexbox only, on purpose
 
