@@ -3,34 +3,74 @@
 [![crates.io](https://img.shields.io/crates/v/hooke.svg)](https://crates.io/crates/hooke)
 [![docs.rs](https://docs.rs/hooke/badge.svg)](https://docs.rs/hooke)
 
-A new FlexBox layout library in Rust, focused on concurrent rendering.
+**Flexbox layout for concurrent rendering.**
 
-`hooke` is a flexbox-only layout engine for persistent, copy-on-write UI trees.
+`hooke` lays out UI trees made of immutable, shared nodes. Fork a tree by cloning one handle.
+Lay out competing versions of it on different threads. Commit one, drop the rest, and diff
+revisions by pointer equality.
 
-`hooke` lays out a tree that **you** own: a tree of immutable, reference-counted nodes that
-a React-Native-like framework forks per update, lays out on whichever thread holds the
-candidate, commits by compare-and-swap and diffs by pointer equality. The engine never
-allocates a node and never owns the tree. It reads and writes your nodes through one trait,
-`LayoutNode`, and dictates the type of exactly two fields in them: the child list,
-`Children`, and the per-node layout state, `LayoutState`.
+Flexbox only. Pure Rust, `no_std` with `alloc`, no dependencies, no `unsafe`.
 
-The crate is `no_std` with `alloc`, has no dependencies and forbids `unsafe`. Add it with
-`cargo add hooke`, or `hooke = "0.1"` under `[dependencies]`. The minimum supported Rust
-version is 1.88.
+```sh
+cargo add hooke
+```
 
-## The four rules
+## Why it exists
 
-1. **Layout results live in the node.** A committed revision is self-contained, and a
-   pointer-equal node in two revisions has the same size and the same descendants.
-2. **Write permission is reference-count uniqueness.** A pass writes a node only through
-   `Handle::make_mut`, which clones the node first if anything else still refers to it.
-   Your node's shallow `Clone` is the clone callback; there is no owner pointer.
-3. **A child's offset belongs to its parent's list**, not to the child, so a sibling that
-   merely moves is never cloned.
-4. **Dirtiness follows the borrow path.** Reaching a node mutably means calling
-   `Children::make_mut` on every ancestor, and each call marks that level. A node's style
-   is compared by a key on every visit, and a measured leaf carries a content id, so a
-   forgotten invalidation cannot happen.
+A concurrent renderer never mutates the tree that is on screen. React Native's Fabric is the
+model: every update forks the current tree into a candidate, lays the candidate out off the
+main thread, and commits it only if nothing else got there first. Several candidates can be in
+flight at once, at different priorities, and most of them share most of their nodes.
+
+That asks something unusual of a layout engine: it has to work on a tree whose nodes belong to
+several versions at the same time. Engines are not built that way.
+
+- **Taffy** keeps sizes, positions and caches inside the tree it lays out and overwrites them
+  on every pass. A second version of a tree is a deep copy, and its tree and styles cannot
+  cross threads.
+- **Yoga** does support this model, and Fabric runs on it. It is C++, and the sharing rests on
+  a convention: a raw owner pointer that every code path has to check, plus a clone callback.
+
+`hooke` makes copy-on-write the storage model itself and lets the borrow checker enforce it.
+It was written for a Rust UI framework with a Fabric-style renderer, and it does nothing else.
+
+## What is different
+
+- **You own the tree.** The engine never allocates a node. It reads and writes yours through
+  one trait, `LayoutNode`, and asks for two fields: a child list and 192 bytes of layout state.
+- **A fork is free; a layout pays only for what changed.** A pass clones a node only when it
+  has to write it and someone else still holds it. Everything else stays shared.
+- **Every revision is complete.** Results live in the nodes, so a committed tree needs no side
+  table, and a subtree that did not change is the same pointer in both revisions.
+- **Moving is not changing.** A child's offset is stored in its parent's list, so a sibling
+  that only shifts is never cloned.
+- **Nothing to invalidate by hand.** There is no `mark_dirty`. Reaching a node mutably marks
+  the path to it, styles are compared by key, and measured leaves carry a content id.
+- **Threads are ordinary.** Nodes are `Send + Sync` whenever your payload is. Each candidate
+  gets its own pass, and passes can share one measurement cache, so text measured for one
+  candidate is not measured again for the next.
+- **Chrome is the arbiter.** 2500 layouts recorded in Chrome, every frame within 0.01.
+
+| | hooke | Taffy | Yoga |
+|---|---|---|---|
+| Tree | the host's | the engine's, or the host's through traits | the engine's nodes |
+| Results | in your nodes, immutable once committed | in the tree, overwritten | in the node |
+| A second version | shares nodes, clones what a pass writes | deep copy | shares nodes, clones through owner checks and a callback |
+| Invalidation | automatic | dirty marking up the parent chain | dirty bit through owner pointers |
+| Layout modes | flexbox | flexbox, grid, block | flexbox |
+| Language | Rust, no `unsafe` | Rust | C++ |
+
+A fork costs a handle clone instead of a tree copy, and a relayout after an edit reuses the
+answer of every subtree the edit did not reach. [`bench/`](bench/README.md) measures both
+against Taffy, Yoga and Cephal, and checks that the engines produce the same layout before it
+times them.
+
+## When not to use it
+
+If you need grid, block or inline layout, use [Taffy](https://crates.io/crates/taffy). If your
+UI tree is mutable and retained, an engine that owns the tree is simpler to live with, and
+Taffy is again the right choice. `hooke` earns its constraints only when versions of a tree
+have to coexist.
 
 ## Embedding
 
@@ -72,23 +112,21 @@ pointer-equal subtrees; and cancellation.
 
 ## Status
 
-This is an early 0.1 release: the API may change before 1.0. The storage layer and the host
-contract are complete: copy-on-write child lists, per-node layout state, the invalidation
-rules, the in-node and shared measurement caches and the concurrency contract.
+Early: this is 0.1, and the API may change before 1.0. The minimum supported Rust version is 1.88.
 
-The container algorithm is the complete CSS Flexible Box Layout Level 1 algorithm: `order`,
+Implemented: the complete CSS Flexible Box Layout Level 1 algorithm. That includes `order`,
 `display: none` and `display: contents`, both `box-sizing` values, `direction: rtl` and the
 `*-reverse` directions, wrapping with `wrap-reverse` and `align-content`, auto margins, the
-§4.5 automatic minimum size, `aspect-ratio` with min/max transfer, first-baseline alignment
-and container baselines, the `min-content`/`max-content`/`fit-content`/`stretch` keywords,
-scroll containers with a scrollbar gutter, relative insets, and absolutely positioned children
-against the §4.1 static-position rectangle of their parent. Chrome is the arbiter:
-`tests/chrome_fixtures.rs` lays out 2500 Chrome-recorded fixtures (Taffy v0.15.1's generated
-corpus plus cephal's divergence cases) and every frame agrees within 0.01; the list of
-expected failures in `tests/fixtures/expected_failures.txt` is empty. `tests/taffy_oracle.rs`
-is a second oracle on random trees, narrowed to the cases where Taffy agrees with Chrome.
+§4.5 automatic minimum size, `aspect-ratio` with min/max transfer, first-baseline alignment,
+the `min-content`/`max-content`/`fit-content`/`stretch` keywords, scroll containers with a
+scrollbar gutter, relative insets, and absolutely positioned children of their parent.
 
-Out of scope for now: vertical writing modes, `visibility: collapse`, last-baseline alignment,
+Verified: `tests/chrome_fixtures.rs` lays out 2500 Chrome-recorded fixtures (Taffy's generated
+corpus plus Cephal's divergence cases) with no expected failures. `tests/taffy_oracle.rs`
+compares random trees against Taffy where Taffy agrees with Chrome. `tests/persistence.rs`
+holds the copy-on-write and concurrency contract.
+
+Not implemented: vertical writing modes, `visibility: collapse`, last-baseline alignment,
 `calc()`, `position: sticky` and `fixed`, fragmentation, `flex-wrap: balance`, and absolutely
 positioned children whose containing block is not their parent.
 
