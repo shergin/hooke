@@ -1,6 +1,6 @@
 [package]
 name = "hooke"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 rust-version = "1.88"
 description = "A flexbox-only layout engine for persistent, copy-on-write UI trees, focused on concurrent rendering."
@@ -11,7 +11,7 @@ keywords = ["flexbox", "layout", "concurrent", "rendering", "ui"]
 categories = ["gui", "rendering", "no-std"]
 documentation = "https://docs.rs/hooke"
 # The test suite needs the 2500 fixtures under `tests/fixtures`; neither is shipped.
-exclude = ["/tests", "/tools", "/.github"]
+exclude = ["/tests", "/tools", "/.github", "/*.png"]
 
 [package.metadata.docs.rs]
 all-features = true
