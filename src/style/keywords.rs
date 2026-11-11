@@ -53,6 +53,7 @@ keyword! {
 
 keyword! {
     /// The CSS `position` property.
+    #[non_exhaustive]
     pub Position {
         /// Normal flow; insets have no effect. The CSS initial value.
         Static,
@@ -109,6 +110,7 @@ impl FlexDirection {
 
 keyword! {
     /// The CSS `flex-wrap` property.
+    #[non_exhaustive]
     pub FlexWrap {
         /// Single line.
         NoWrap,
@@ -134,6 +136,7 @@ keyword! {
 keyword! {
     /// The CSS `overflow` property, as a layout input only. `scroll` makes the node a scroll
     /// container, which zeroes its automatic minimum size and reserves the scrollbar gutter.
+    #[non_exhaustive]
     pub Overflow {
         /// Content may overflow; the automatic minimum size applies.
         Visible,
@@ -158,6 +161,7 @@ impl Overflow {
 
 keyword! {
     /// The CSS `justify-content` property (main-axis distribution).
+    #[non_exhaustive]
     pub JustifyContent {
         /// Behaves as `flex-start`. The CSS initial value.
         Normal,
@@ -185,6 +189,7 @@ keyword! {
 
 keyword! {
     /// The CSS `align-items` property, and the value of `align-self` when it is not `auto`.
+    #[non_exhaustive]
     pub AlignItems {
         /// Behaves as `stretch`. The CSS initial value.
         Normal,
@@ -221,6 +226,7 @@ impl AlignItems {
 
 keyword! {
     /// The CSS `align-content` property (cross-axis distribution of lines).
+    #[non_exhaustive]
     pub AlignContent {
         /// Behaves as `stretch`. The CSS initial value.
         Normal,

@@ -182,7 +182,15 @@ impl<S: Scalar> Entry<S> {
 const F_KIND: u32 = 0b11;
 const F_NEW_LAYOUT: u32 = 1 << 2;
 
-/// The engine's per-node state. Embed one in every node; see the [module docs](self).
+/// The engine's per-node state. Embed one in every node.
+///
+/// 192 bytes for `f32` with the default four measurement slots. It holds the node's border-box
+/// size, the memo of its last final layout, a few persistent answers to measurement questions,
+/// the content id of a measured leaf, and the last style key the engine saw. The node's
+/// *offset* is not here: it belongs to the parent's [`Slot`](crate::Slot).
+///
+/// The engine writes this through `&mut` it obtains by copy-on-write. Hosts read sizes and
+/// flags, and call the invalidation methods when measured content changes.
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct LayoutState<S: Scalar = f32, const K: usize = DEFAULT_SLOTS> {

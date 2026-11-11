@@ -81,6 +81,7 @@ fn to_taffy_style(s: &Style) -> taffy::style::Style {
             Position::Absolute => t::Position::Absolute,
             Position::Relative => t::Position::Relative,
             Position::Static => t::Position::Static,
+            other => panic!("unmapped hooke position {other:?}"),
         },
         flex_direction: match s.flex_direction() {
             FlexDirection::Row => t::FlexDirection::Row,
@@ -126,6 +127,7 @@ fn to_taffy_style(s: &Style) -> taffy::style::Style {
             JustifyContent::SpaceBetween => t::JustifyContent::SPACE_BETWEEN,
             JustifyContent::SpaceAround => t::JustifyContent::SPACE_AROUND,
             JustifyContent::SpaceEvenly => t::JustifyContent::SPACE_EVENLY,
+            other => panic!("unmapped hooke justify-content {other:?}"),
         },
         align_items: match s.align_items() {
             AlignItems::Normal => t::AlignItems::NORMAL,
@@ -134,6 +136,7 @@ fn to_taffy_style(s: &Style) -> taffy::style::Style {
             AlignItems::FlexEnd | AlignItems::End | AlignItems::SelfEnd => t::AlignItems::FLEX_END,
             AlignItems::Center => t::AlignItems::CENTER,
             AlignItems::Baseline => t::AlignItems::BASELINE,
+            other => panic!("unmapped hooke align-items {other:?}"),
         },
         align_self: s.align_self().map(|a| match a {
             AlignItems::Normal => t::AlignSelf::NORMAL,
@@ -142,6 +145,7 @@ fn to_taffy_style(s: &Style) -> taffy::style::Style {
             AlignItems::FlexEnd | AlignItems::End | AlignItems::SelfEnd => t::AlignSelf::FLEX_END,
             AlignItems::Center => t::AlignSelf::CENTER,
             AlignItems::Baseline => t::AlignSelf::BASELINE,
+            other => panic!("unmapped hooke align-self {other:?}"),
         }),
         ..Default::default()
     }

@@ -125,6 +125,7 @@ impl<S: Scalar> fmt::Debug for Scratch<S> {
 }
 
 /// Counters a pass reports. All are per top-level [`layout`] call.
+#[non_exhaustive]
 #[derive(Copy, Clone, Default, PartialEq, Eq, Debug)]
 pub struct Stats {
     /// Nodes considered, including those answered by a probe.

@@ -8,6 +8,7 @@ use crate::children::Children;
 use crate::scalar::Scalar;
 use crate::state::LayoutState;
 use crate::style::Style;
+use core::fmt;
 
 /// Implemented by the host's node type.
 ///
@@ -76,4 +77,24 @@ pub struct PartsMut<'a, N: LayoutNode> {
     pub state: &'a mut LayoutState<N::Scalar>,
     /// The node's children.
     pub children: &'a mut Children<N>,
+}
+
+impl<N: LayoutNode> fmt::Debug for Parts<'_, N> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Parts")
+            .field("style", self.style)
+            .field("state", self.state)
+            .field("children", self.children)
+            .finish()
+    }
+}
+
+impl<N: LayoutNode> fmt::Debug for PartsMut<'_, N> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("PartsMut")
+            .field("style", self.style)
+            .field("state", &*self.state)
+            .field("children", &*self.children)
+            .finish()
+    }
 }

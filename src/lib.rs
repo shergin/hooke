@@ -54,7 +54,7 @@
 //!
 //! # Status
 //!
-//! Phase 1. The container algorithm is the complete CSS Flexible Box Layout Level 1 algorithm
+//! An early release: the API may change before 1.0. The container algorithm is the complete CSS Flexible Box Layout Level 1 algorithm
 //! (§9), with `order`, `display: none` and `display: contents`, both `box-sizing` values,
 //! `direction: rtl` and the `*-reverse` directions, multi-line wrapping with `wrap-reverse` and
 //! `align-content`, auto margins, the §4.5 automatic minimum size, `aspect-ratio` with min/max
@@ -76,24 +76,24 @@
 //! |---|---|---|
 //! | `std` | on | `std::error::Error` impls and [`SharedMeasureCache`] |
 //! | `sync` | on | [`Handle`] is `Arc` and nodes are `Send + Sync`; off means `Rc` |
-//! | `slots-2` | off | Two persistent measurement slots per node instead of four |
+//! | `slots-2` | off | Two persistent measurement slots per node instead of four; changes the size of [`LayoutState`] for the whole build, so only the final application should enable it |
 //! | `f64` | off | `Scalar` for `f64` |
 
 #![cfg_attr(not(feature = "std"), no_std)]
 #![forbid(unsafe_code)]
-#![warn(missing_docs, rust_2018_idioms)]
+#![warn(missing_docs, missing_debug_implementations, rust_2018_idioms)]
 
 extern crate alloc;
 
-pub mod children;
-pub mod geometry;
-pub mod measure;
-pub mod pass;
-pub mod scalar;
-pub mod snap;
-pub mod state;
-pub mod style;
-pub mod tree;
+mod children;
+mod geometry;
+mod measure;
+mod pass;
+mod scalar;
+mod snap;
+mod state;
+mod style;
+mod tree;
 
 pub use children::{Children, Slot};
 pub use geometry::{Axis, Edges, Point, Rect, Size};

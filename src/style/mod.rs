@@ -145,7 +145,14 @@ mod bits {
 
 /// Every property that affects flex layout, in 144 bytes for `f32`.
 ///
-/// See the [module documentation](self) for the representation and the builders below for use.
+/// Build one with [`Style::web`] (CSS initial values, also `Default`) or [`Style::yoga`]
+/// (Yoga's and React Native's initial values), refine it with the `with_*` builders or `set_*`
+/// setters, and read properties back through the typed accessors. The representation is
+/// private: keyword properties share one bit word, and every length is a four-bit unit tag
+/// plus a bare scalar payload, so the value carries no pointer and can be compared or
+/// fingerprinted byte-wise.
+///
+/// Percentages are fractions: `Length::Percent(0.5)` is `50%`, as in Yoga and Taffy.
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq)]
 pub struct Style<S: Scalar = f32> {
