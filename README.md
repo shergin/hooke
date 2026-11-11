@@ -5,9 +5,10 @@
 
 **Flexbox layout for concurrent rendering.**
 
-`hooke` lays out UI trees made of immutable, shared nodes. Fork a tree by cloning one handle.
-Lay out competing versions of it on different threads. Commit one, drop the rest, and diff
-revisions by pointer equality.
+`hooke` is built to enable the concurrent rendering found in modern UI frameworks such as
+Litho, ComponentKit, React Native and others. It lays out UI trees made of immutable, shared
+nodes. Fork a tree by cloning one handle. Lay out competing versions of it on different
+threads. Commit one, drop the rest, and diff revisions by pointer equality.
 
 Flexbox only. Pure Rust, `no_std` with `alloc`, no dependencies, no `unsafe`.
 
@@ -17,10 +18,10 @@ cargo add hooke
 
 ## Why it exists
 
-A concurrent renderer never mutates the tree that is on screen. React Native's Fabric is the
-model: every update forks the current tree into a candidate, lays the candidate out off the
-main thread, and commits it only if nothing else got there first. Several candidates can be in
-flight at once, at different priorities, and most of them share most of their nodes.
+A concurrent renderer never mutates the tree that is on screen. Every update forks the current
+tree into a candidate, lays the candidate out off the main thread, and commits it only if
+nothing else got there first. Several candidates can be in flight at once, at different
+priorities, and most of them share most of their nodes.
 
 That asks something unusual of a layout engine: it has to work on a tree whose nodes belong to
 several versions at the same time. Engines are not built that way.
@@ -28,11 +29,12 @@ several versions at the same time. Engines are not built that way.
 - **Taffy** keeps sizes, positions and caches inside the tree it lays out and overwrites them
   on every pass. A second version of a tree is a deep copy, and its tree and styles cannot
   cross threads.
-- **Yoga** does support this model, and Fabric runs on it. It is C++, and the sharing rests on
-  a convention: a raw owner pointer that every code path has to check, plus a clone callback.
+- **Yoga** does support this model, and React Native runs on it. It is C++, and the sharing
+  rests on a convention: a raw owner pointer that every code path has to check, plus a clone
+  callback.
 
 `hooke` makes copy-on-write the storage model itself and lets the borrow checker enforce it.
-It was written for a Rust UI framework with a Fabric-style renderer, and it does nothing else.
+It was written to bring that kind of rendering to Rust, and it does nothing else.
 
 ## What is different
 
@@ -104,7 +106,7 @@ with a `LayoutCx` over a reusable `Scratch`, and implement `Measure` for leaves 
 Sizes end up in each node's `LayoutState`, offsets in each parent's `Children`; `snap` turns
 them into device-pixel frames at mount time.
 
-[`examples/shadow_tree.rs`](examples/shadow_tree.rs) is a complete Fabric-like host: a
+[`examples/shadow_tree.rs`](examples/shadow_tree.rs) is a complete host: a
 `ShadowNode` with a family, versioned props and a text leaf; path-copy edits; a `ShadowTree`
 with a compare-and-swap commit; two candidates laid out on two threads sharing a
 `SharedMeasureCache`, the loser rebased with zero re-measurement; a mount-time diff that skips
