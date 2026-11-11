@@ -72,6 +72,23 @@ answer of every subtree the edit did not reach. [`bench/`](bench/README.md) meas
 against Taffy, Yoga and Cephal, and checks that the engines produce the same layout before it
 times them.
 
+## Flexbox only, on purpose
+
+Less is more. `hooke` implements one layout model, implements all of it, and spends every
+design decision on making that one model small and fast.
+
+- **A style is 144 bytes.** One flat value with no pointers, so it compares and hashes as bytes.
+- **Layout state is 192 bytes, inline in your node.** No side tables, no per-node allocation.
+- **A warmed-up pass allocates nothing** beyond the nodes it has to copy.
+- **One algorithm.** No dispatch between layout modes, and caches keyed for exactly the
+  questions flexbox asks.
+- **Nothing else comes along.** No dependencies, and it builds for targets without `std` or
+  atomics.
+
+Grid, block and inline layout would each widen the style, the state and the cache keys of every
+node, including the nodes that never use them. `hooke` would rather do one thing and be hard
+to beat at it.
+
 ## When not to use it
 
 If you need grid, block or inline layout, use [Taffy](https://crates.io/crates/taffy). If your
